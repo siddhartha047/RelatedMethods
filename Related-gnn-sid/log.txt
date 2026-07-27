@@ -1,0 +1,47 @@
+---NeuralSparseResults------=
+----Cornell-----
+----Run1-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 472.0, Ratio = 0.8474
+Best test accuracy throughout: tensor(0.7568, device='cuda:0')
+Mean epoch time:  0.013675636053085327
+Final test accuracy: 0.5405
+----Run2-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 472.0, Ratio = 0.8474
+Best test accuracy throughout: tensor(0.7568, device='cuda:0')
+Mean epoch time:  0.014268113374710083
+Final test accuracy: 0.6486
+----Run3-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 472.0, Ratio = 0.8474
+Best test accuracy throughout: tensor(0.7568, device='cuda:0')
+Mean epoch time:  0.013459378480911255
+Final test accuracy: 0.6486
+----Run4-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 472.0, Ratio = 0.8474
+Best test accuracy throughout: tensor(0.7568, device='cuda:0')
+Mean epoch time:  0.013474043607711792
+Final test accuracy: 0.6216
+----Run5-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 472.0, Ratio = 0.8474
+Best test accuracy throughout: tensor(0.7568, device='cuda:0')
+Mean epoch time:  0.013396618366241455
+Final test accuracy: 0.6216

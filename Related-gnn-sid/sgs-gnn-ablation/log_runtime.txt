@@ -1,0 +1,176 @@
+-------Perepochruntime------
+learned
+CS
+CoauthorCS()
+Data(x=[18333, 6805], edge_index=[2, 163788], y=[18333])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.1386
+Iteration:  79
+Best Test F1 throughout: 0.9389
+Loading best model for final evaluation...: 0.9399
+Best Test F1 after loading saved model: 0.9377
+Run: 1
+Mean epoch time of run 0.1319
+Iteration:  80
+Best Test F1 throughout: 0.9391
+Loading best model for final evaluation...: 0.9414
+Best Test F1 after loading saved model: 0.9388
+Run: 2
+Mean epoch time of run 0.1326
+Iteration:  72
+Best Test F1 throughout: 0.9407
+Loading best model for final evaluation...: 0.9422
+Best Test F1 after loading saved model: 0.9403
+Mean training epoch runtime: 0.1343
+Mean Std of Test F1 Score: 0.9389 +/- 0.0011
+Mean convergence number: 77.0000 +/- 3.5590, [79, 80, 72]
+Questions
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0457
+Iteration:  82
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9702
+Run: 1
+Mean epoch time of run 0.0401
+Iteration:  87
+Best Test F1 throughout: 0.9712
+Loading best model for final evaluation...: 0.9712
+Best Test F1 after loading saved model: 0.9711
+Run: 2
+Mean epoch time of run 0.0397
+Iteration:  83
+Best Test F1 throughout: 0.9705
+Loading best model for final evaluation...: 0.9706
+Best Test F1 after loading saved model: 0.9703
+Mean training epoch runtime: 0.0418
+Mean Std of Test F1 Score: 0.9705 +/- 0.0004
+Mean convergence number: 84.0000 +/- 2.1602, [82, 87, 83]
+-------Perepochruntime------
+learned
+CS
+CoauthorCS()
+Data(x=[18333, 6805], edge_index=[2, 163788], y=[18333])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Questions
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Amazon-ratings
+HeterophilousGraphDataset(name=amazon_ratings)
+Data(x=[24492, 300], edge_index=[2, 93050], y=[24492], train_mask=[24492, 10], val_mask=[24492, 10], test_mask=[24492, 10])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+johnshopkins55
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+amherst41
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+-------Perepochruntime------
+learned
+CS
+CoauthorCS()
+Data(x=[18333, 6805], edge_index=[2, 163788], y=[18333])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+-------Perepochruntime------
+learned
+CS
+CoauthorCS()
+Data(x=[18333, 6805], edge_index=[2, 163788], y=[18333])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0512
+Iteration:  110
+Best Test F1 throughout: 0.9483
+Loading best model for final evaluation...: 0.9490
+Best Test F1 after loading saved model: 0.9459
+Run: 1
+Mean epoch time of run 0.0466
+Iteration:  102
+Best Test F1 throughout: 0.9471
+Loading best model for final evaluation...: 0.9489
+Best Test F1 after loading saved model: 0.9446
+Run: 2
+Mean epoch time of run 0.0481
+Iteration:  90
+Best Test F1 throughout: 0.9482
+Loading best model for final evaluation...: 0.9491
+Best Test F1 after loading saved model: 0.9476
+Mean training epoch runtime: 0.0487
+Mean Std of Test F1 Score: 0.9461 +/- 0.0012
+Mean convergence number: 100.6667 +/- 8.2192, [110, 102, 90]
+Questions
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0653
+Iteration:  60
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9701
+Run: 1
+Mean epoch time of run 0.0551
+Iteration:  57
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9702
+Run: 2
+Mean epoch time of run 0.0618
+Iteration:  56
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9702
+Mean training epoch runtime: 0.0607
+Mean Std of Test F1 Score: 0.9701 +/- 0.0000
+Mean convergence number: 57.6667 +/- 1.6997, [60, 57, 56]
+Amazon-ratings
+HeterophilousGraphDataset(name=amazon_ratings)
+Data(x=[24492, 300], edge_index=[2, 93050], y=[24492], train_mask=[24492, 10], val_mask=[24492, 10], test_mask=[24492, 10])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0476
+Iteration:  76
+Best Test F1 throughout: 0.4459
+Loading best model for final evaluation...: 0.4382
+Best Test F1 after loading saved model: 0.4444
+Run: 1
+Mean epoch time of run 0.0444
+Iteration:  86
+Best Test F1 throughout: 0.4488
+Loading best model for final evaluation...: 0.4397
+Best Test F1 after loading saved model: 0.4491
+Run: 2
+Mean epoch time of run 0.0430
+Iteration:  75
+Best Test F1 throughout: 0.4462
+Loading best model for final evaluation...: 0.4413
+Best Test F1 after loading saved model: 0.4446
+Mean training epoch runtime: 0.0450
+Mean Std of Test F1 Score: 0.4460 +/- 0.0022
+Mean convergence number: 79.0000 +/- 4.9666, [76, 86, 75]
+johnshopkins55
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0517
+Iteration:  155
+Best Test F1 throughout: 0.6737
+Loading best model for final evaluation...: 0.6940
+Best Test F1 after loading saved model: 0.6699
+Run: 1
+Mean epoch time of run 0.0495
+Iteration:  189
+Best Test F1 throughout: 0.6757
+Loading best model for final evaluation...: 0.6979
+Best Test F1 after loading saved model: 0.6708
+Run: 2
+Mean epoch time of run 0.0503
+Iteration:  200
+Best Test F1 throughout: 0.6776
+Loading best model for final evaluation...: 0.6902
+Best Test F1 after loading saved model: 0.6718
+Mean training epoch runtime: 0.0505
+Mean Std of Test F1 Score: 0.6708 +/- 0.0008
+Mean convergence number: 181.3333 +/- 19.1543, [155, 189, 200]

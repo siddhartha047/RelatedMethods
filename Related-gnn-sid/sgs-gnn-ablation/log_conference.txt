@@ -1,0 +1,121 @@
+-------Perepochruntime------
+learned
+CS
+CoauthorCS()
+Data(x=[18333, 6805], edge_index=[2, 163788], y=[18333])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0535
+Iteration:  200
+Best Test F1 throughout: 0.9456
+Loading best model for final evaluation...: 0.9482
+Best Test F1 after loading saved model: 0.9436
+Run: 1
+Mean epoch time of run 0.0484
+Iteration:  200
+Best Test F1 throughout: 0.9456
+Loading best model for final evaluation...: 0.9505
+Best Test F1 after loading saved model: 0.9427
+Run: 2
+Mean epoch time of run 0.0480
+Iteration:  200
+Best Test F1 throughout: 0.9463
+Loading best model for final evaluation...: 0.9494
+Best Test F1 after loading saved model: 0.9403
+Mean training epoch runtime: 0.0500
+Mean Std of Test F1 Score: 0.9422 +/- 0.0014
+Mean convergence number: 200.0000 +/- 0.0000, [200, 200, 200]
+Questions
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0577
+Iteration:  59
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9702
+Run: 1
+Mean epoch time of run 0.0496
+Iteration:  60
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9701
+Run: 2
+Mean epoch time of run 0.0574
+Iteration:  70
+Best Test F1 throughout: 0.9702
+Loading best model for final evaluation...: 0.9702
+Best Test F1 after loading saved model: 0.9702
+Mean training epoch runtime: 0.0549
+Mean Std of Test F1 Score: 0.9701 +/- 0.0000
+Mean convergence number: 63.0000 +/- 4.9666, [59, 60, 70]
+Amazon-ratings
+HeterophilousGraphDataset(name=amazon_ratings)
+Data(x=[24492, 300], edge_index=[2, 93050], y=[24492], train_mask=[24492, 10], val_mask=[24492, 10], test_mask=[24492, 10])
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0435
+Iteration:  114
+Best Test F1 throughout: 0.4495
+Loading best model for final evaluation...: 0.4408
+Best Test F1 after loading saved model: 0.4449
+Run: 1
+Mean epoch time of run 0.0419
+Iteration:  200
+Best Test F1 throughout: 0.4586
+Loading best model for final evaluation...: 0.4516
+Best Test F1 after loading saved model: 0.4573
+Run: 2
+Mean epoch time of run 0.0409
+Iteration:  200
+Best Test F1 throughout: 0.4558
+Loading best model for final evaluation...: 0.4512
+Best Test F1 after loading saved model: 0.4537
+Mean training epoch runtime: 0.0421
+Mean Std of Test F1 Score: 0.4520 +/- 0.0052
+Mean convergence number: 171.3333 +/- 40.5408, [114, 200, 200]
+johnshopkins55
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0479
+Iteration:  200
+Best Test F1 throughout: 0.6979
+Loading best model for final evaluation...: 0.7230
+Best Test F1 after loading saved model: 0.6844
+Run: 1
+Mean epoch time of run 0.0472
+Iteration:  200
+Best Test F1 throughout: 0.7037
+Loading best model for final evaluation...: 0.7230
+Best Test F1 after loading saved model: 0.6882
+Run: 2
+Mean epoch time of run 0.0441
+Iteration:  200
+Best Test F1 throughout: 0.7037
+Loading best model for final evaluation...: 0.7239
+Best Test F1 after loading saved model: 0.6815
+Mean training epoch runtime: 0.0464
+Mean Std of Test F1 Score: 0.6847 +/- 0.0028
+Mean convergence number: 200.0000 +/- 0.0000, [200, 200, 200]
+amherst41
+Graph has fewer than 500000 nodes; don't do graph partition
+Run: 0
+Mean epoch time of run 0.0347
+Iteration:  200
+Best Test F1 throughout: 0.6376
+Loading best model for final evaluation...: 0.6644
+Best Test F1 after loading saved model: 0.6040
+Run: 1
+Mean epoch time of run 0.0328
+Iteration:  200
+Best Test F1 throughout: 0.6331
+Loading best model for final evaluation...: 0.6689
+Best Test F1 after loading saved model: 0.5996
+Run: 2
+Mean epoch time of run 0.0325
+Iteration:  200
+Best Test F1 throughout: 0.6353
+Loading best model for final evaluation...: 0.6622
+Best Test F1 after loading saved model: 0.6398
+Mean training epoch runtime: 0.0334
+Mean Std of Test F1 Score: 0.6145 +/- 0.0180
+Mean convergence number: 200.0000 +/- 0.0000, [200, 200, 200]

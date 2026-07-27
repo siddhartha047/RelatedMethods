@@ -1,0 +1,50 @@
+23:57:59: Namespace(batch_size=100, batch_size_jac=200, test_batch_size=100, multiplier=1, epochs=200, lr=0.01, momentum=0.9, no_cuda=False, seed=17, log_interval=100, optimizer='adam', save='1743134279899798.pt', data='Computers', decay_frequency=25000, l1=0.0, fp16=False, valid_split=0.1, resume=None, start_epoch=1, model='h2gcn', l2=0.0005, iters=3, save_features=False, bench=False, max_threads=10, decay_schedule='cosine', growth_schedule='gradient', lr_scheduler=False, adj_sparse=False, feature_sparse=False, weight_sparse=False, dim=512, cuda=0, fagcn_layer_num=1, fagcn_dropout=0, fagcn_eps=0.1, mixhop_layer_num=1, mixhop_dropout=0, mixhop_hop=2, gprgnn_alpha=0.1, gprgnn_k=10, h2gcn_dropout=0.1, growth='gradient', prune='magnitude', redistribution='none', prune_rate=0.5, pruning_rate=0.5, sparse=False, fix=False, update_frequency=100, sparse_init='ERK', method='GraNet', init_density=1.0, final_density=0.05, init_density_adj=1.0, final_density_adj=0.5, init_density_feature=1.0, final_density_feature=0.5, init_prune_epoch=0, final_prune_epoch=110, rm_first=False)
+23:57:59: 
+
+
+23:57:59: ================================================================================
+23:57:59: 
+Iteration start: 1/3
+
+23:58:01: HGCN(
+  (lin1): Linear(in_features=767, out_features=512, bias=True)
+  (lin): Linear(in_features=2560, out_features=10, bias=True)
+)
+23:58:01: ============================================================
+23:58:01: h2gcn
+23:58:01: ============================================================
+23:58:01: ============================================================
+23:58:01: Prune mode: magnitude
+23:58:01: Growth mode: gradient
+23:58:01: Redistribution mode: none
+23:58:01: ============================================================
+23:58:17: 
+Iteration start: 2/3
+
+23:58:17: HGCN(
+  (lin1): Linear(in_features=767, out_features=512, bias=True)
+  (lin): Linear(in_features=2560, out_features=10, bias=True)
+)
+23:58:17: ============================================================
+23:58:17: h2gcn
+23:58:17: ============================================================
+23:58:17: ============================================================
+23:58:17: Prune mode: magnitude
+23:58:17: Growth mode: gradient
+23:58:17: Redistribution mode: none
+23:58:17: ============================================================
+23:58:31: 
+Iteration start: 3/3
+
+23:58:31: HGCN(
+  (lin1): Linear(in_features=767, out_features=512, bias=True)
+  (lin): Linear(in_features=2560, out_features=10, bias=True)
+)
+23:58:31: ============================================================
+23:58:31: h2gcn
+23:58:31: ============================================================
+23:58:31: ============================================================
+23:58:31: Prune mode: magnitude
+23:58:31: Growth mode: gradient
+23:58:31: Redistribution mode: none
+23:58:31: ============================================================

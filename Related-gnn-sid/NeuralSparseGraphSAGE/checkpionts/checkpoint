@@ -1,0 +1,2 @@
+model_checkpoint_path: "checkpointhello test only"
+all_model_checkpoint_paths: "checkpointhello test only"

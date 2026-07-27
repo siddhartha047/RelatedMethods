@@ -1,0 +1,7 @@
+Method,Growth,Prune Rate,Update Frequency,Final Prune Epoch,::,train_acc,val_acc,test_acc,train_time,test_time
+GraNet, momentum, 0.3, 100, 110, :::,   0.9047, 0.6927, 0.6321,2.3211, 0.0027
+GraNet, momentum, 0.3, 100, 110, :::,   0.9289, 0.6979, 0.6062,1.9168, 0.0025
+GraNet, momentum, 0.3, 100, 110, :::,   0.9116, 0.6927, 0.6010,1.9861, 0.0025
+GraNet, momentum, 0.3, 100, 110, :::,   0.9601, 0.7031, 0.6010,3.1116, 0.0025
+GraNet, momentum, 0.3, 100, 110, :::,   0.9168, 0.7083, 0.6114,2.8444, 0.0025
+GraNet, momentum, 0.3, 100, 110, :::,   0.9012, 0.7031, 0.6218,2.8295, 0.0025

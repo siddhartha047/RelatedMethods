@@ -1,0 +1,6 @@
+Method,Growth,Prune Rate,Update Frequency,Final Prune Epoch,::,train_acc,val_acc,test_acc,train_time,test_time
+GraNet, gradient, 0.5, 100, 110, :::,   0.8700, 0.7031, 0.6218,0.4594, 0.0039
+GraNet, gradient, 0.5, 100, 110, :::,   0.8718, 0.6875, 0.6373,0.0787, 0.0037
+GraNet, gradient, 0.5, 100, 110, :::,   0.8718, 0.7188, 0.6218,2.1127, 0.0031
+GraNet, gradient, 0.5, 100, 110, :::,   0.8752, 0.7135, 0.6062,1.9602, 0.0040
+GraNet, gradient, 0.5, 100, 110, :::,   0.8804, 0.7083, 0.5959,2.0280, 0.0039

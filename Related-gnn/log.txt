@@ -1,0 +1,896 @@
+---NeuralSparseResults------=
+----Cornell-----
+----Run1-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 360.0, Ratio = 0.6463
+Best test accuracy throughout: tensor(0.7838, device='cuda:0')
+Mean epoch time:  0.014932082891464233
+Final test accuracy: 0.7568
+----Run2-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 360.0, Ratio = 0.6463
+Best test accuracy throughout: tensor(0.7838, device='cuda:0')
+Mean epoch time:  0.013297741413116454
+Final test accuracy: 0.7568
+----Run3-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 360.0, Ratio = 0.6463
+Best test accuracy throughout: tensor(0.7568, device='cuda:0')
+Mean epoch time:  0.013950092792510986
+Final test accuracy: 0.5946
+----Run4-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 360.0, Ratio = 0.6463
+Best test accuracy throughout: tensor(0.7838, device='cuda:0')
+Mean epoch time:  0.012846847772598266
+Final test accuracy: 0.7568
+----Run5-----
+Cornell N: 183 E: 557 F: 1703 C: 5 d: 3.04 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 557], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 557, S = 360.0, Ratio = 0.6463
+Best test accuracy throughout: tensor(0.7838, device='cuda:0')
+Mean epoch time:  0.012735458612442017
+Final test accuracy: 0.7568
+----Texas-----
+----Run1-----
+Texas N: 183 E: 574 F: 1703 C: 5 d: 3.14 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 574], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 574, S = 367.0, Ratio = 0.6394
+Best test accuracy throughout: tensor(0.8919, device='cuda:0')
+Mean epoch time:  0.012010116577148438
+Final test accuracy: 0.8378
+----Run2-----
+Texas N: 183 E: 574 F: 1703 C: 5 d: 3.14 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 574], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 574, S = 367.0, Ratio = 0.6394
+Best test accuracy throughout: tensor(0.8919, device='cuda:0')
+Mean epoch time:  0.0166337513923645
+Final test accuracy: 0.8649
+----Run3-----
+Texas N: 183 E: 574 F: 1703 C: 5 d: 3.14 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 574], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 574, S = 367.0, Ratio = 0.6394
+Best test accuracy throughout: tensor(0.8919, device='cuda:0')
+Mean epoch time:  0.013469488620758056
+Final test accuracy: 0.8378
+----Run4-----
+Texas N: 183 E: 574 F: 1703 C: 5 d: 3.14 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 574], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 574, S = 367.0, Ratio = 0.6394
+Best test accuracy throughout: tensor(0.8919, device='cuda:0')
+Mean epoch time:  0.01196797251701355
+Final test accuracy: 0.8649
+----Run5-----
+Texas N: 183 E: 574 F: 1703 C: 5 d: 3.14 lr: 0.48 i: False s: True u: True
+tensor(87) tensor(59) tensor(37)
+Data(x=[183, 1703], edge_index=[2, 574], y=[183], train_mask=[183], val_mask=[183], test_mask=[183])
+tensor(87) tensor(59) tensor(37)
+E = 574, S = 367.0, Ratio = 0.6394
+Best test accuracy throughout: tensor(0.8919, device='cuda:0')
+Mean epoch time:  0.013792933225631713
+Final test accuracy: 0.8378
+----Wisconsin-----
+----Run1-----
+Wisconsin N: 251 E: 916 F: 1703 C: 5 d: 3.65 lr: 0.48 i: False s: True u: True
+tensor(120) tensor(80) tensor(51)
+Data(x=[251, 1703], edge_index=[2, 916], y=[251], train_mask=[251], val_mask=[251], test_mask=[251])
+tensor(120) tensor(80) tensor(51)
+E = 916, S = 561.0, Ratio = 0.6124
+Best test accuracy throughout: tensor(0.8627, device='cuda:0')
+Mean epoch time:  0.013437453508377075
+Final test accuracy: 0.8235
+----Run2-----
+Wisconsin N: 251 E: 916 F: 1703 C: 5 d: 3.65 lr: 0.48 i: False s: True u: True
+tensor(120) tensor(80) tensor(51)
+Data(x=[251, 1703], edge_index=[2, 916], y=[251], train_mask=[251], val_mask=[251], test_mask=[251])
+tensor(120) tensor(80) tensor(51)
+E = 916, S = 561.0, Ratio = 0.6124
+Best test accuracy throughout: tensor(0.8824, device='cuda:0')
+Mean epoch time:  0.013178094625473022
+Final test accuracy: 0.8039
+----Run3-----
+Wisconsin N: 251 E: 916 F: 1703 C: 5 d: 3.65 lr: 0.48 i: False s: True u: True
+tensor(120) tensor(80) tensor(51)
+Data(x=[251, 1703], edge_index=[2, 916], y=[251], train_mask=[251], val_mask=[251], test_mask=[251])
+tensor(120) tensor(80) tensor(51)
+E = 916, S = 561.0, Ratio = 0.6124
+Best test accuracy throughout: tensor(0.8627, device='cuda:0')
+Mean epoch time:  0.01190014362335205
+Final test accuracy: 0.7647
+----Run4-----
+Wisconsin N: 251 E: 916 F: 1703 C: 5 d: 3.65 lr: 0.48 i: False s: True u: True
+tensor(120) tensor(80) tensor(51)
+Data(x=[251, 1703], edge_index=[2, 916], y=[251], train_mask=[251], val_mask=[251], test_mask=[251])
+tensor(120) tensor(80) tensor(51)
+E = 916, S = 561.0, Ratio = 0.6124
+Best test accuracy throughout: tensor(0.8627, device='cuda:0')
+Mean epoch time:  0.013175804615020752
+Final test accuracy: 0.8431
+----Run5-----
+Wisconsin N: 251 E: 916 F: 1703 C: 5 d: 3.65 lr: 0.48 i: False s: True u: True
+tensor(120) tensor(80) tensor(51)
+Data(x=[251, 1703], edge_index=[2, 916], y=[251], train_mask=[251], val_mask=[251], test_mask=[251])
+tensor(120) tensor(80) tensor(51)
+E = 916, S = 561.0, Ratio = 0.6124
+Best test accuracy throughout: tensor(0.8824, device='cuda:0')
+Mean epoch time:  0.013342393636703491
+Final test accuracy: 0.8431
+----reed98-----
+----Run1-----
+reed98 N: 962 E: 37624 F: 1001 C: 3 d: 39.11 lr: 0.60 i: False s: False u: True
+tensor(577) tensor(192) tensor(193)
+Data(x=[962, 1001], edge_index=[2, 37624], y=[962], train_mask=[962], val_mask=[962], test_mask=[962])
+tensor(577) tensor(192) tensor(193)
+E = 37624, S = 2797.0, Ratio = 0.0743
+Best test accuracy throughout: tensor(0.6062, device='cuda:0')
+Mean epoch time:  0.024570648670196534
+Final test accuracy: 0.5803
+----Run2-----
+reed98 N: 962 E: 37624 F: 1001 C: 3 d: 39.11 lr: 0.60 i: False s: False u: True
+tensor(577) tensor(192) tensor(193)
+Data(x=[962, 1001], edge_index=[2, 37624], y=[962], train_mask=[962], val_mask=[962], test_mask=[962])
+tensor(577) tensor(192) tensor(193)
+E = 37624, S = 2797.0, Ratio = 0.0743
+Best test accuracy throughout: tensor(0.6166, device='cuda:0')
+Mean epoch time:  0.022946934700012207
+Final test accuracy: 0.5699
+----Run3-----
+reed98 N: 962 E: 37624 F: 1001 C: 3 d: 39.11 lr: 0.60 i: False s: False u: True
+tensor(577) tensor(192) tensor(193)
+Data(x=[962, 1001], edge_index=[2, 37624], y=[962], train_mask=[962], val_mask=[962], test_mask=[962])
+tensor(577) tensor(192) tensor(193)
+E = 37624, S = 2797.0, Ratio = 0.0743
+Best test accuracy throughout: tensor(0.6166, device='cuda:0')
+Mean epoch time:  0.02341065287590027
+Final test accuracy: 0.5699
+----Run4-----
+reed98 N: 962 E: 37624 F: 1001 C: 3 d: 39.11 lr: 0.60 i: False s: False u: True
+tensor(577) tensor(192) tensor(193)
+Data(x=[962, 1001], edge_index=[2, 37624], y=[962], train_mask=[962], val_mask=[962], test_mask=[962])
+tensor(577) tensor(192) tensor(193)
+E = 37624, S = 2797.0, Ratio = 0.0743
+Best test accuracy throughout: tensor(0.6269, device='cuda:0')
+Mean epoch time:  0.02261773109436035
+Final test accuracy: 0.6114
+----Run5-----
+reed98 N: 962 E: 37624 F: 1001 C: 3 d: 39.11 lr: 0.60 i: False s: False u: True
+tensor(577) tensor(192) tensor(193)
+Data(x=[962, 1001], edge_index=[2, 37624], y=[962], train_mask=[962], val_mask=[962], test_mask=[962])
+tensor(577) tensor(192) tensor(193)
+E = 37624, S = 2797.0, Ratio = 0.0743
+Best test accuracy throughout: tensor(0.6062, device='cuda:0')
+Mean epoch time:  0.024461876153945922
+Final test accuracy: 0.5959
+---NeuralSparseResults------=
+----amherst41-----
+----Run1-----
+amherst41 N: 2235 E: 181908 F: 1193 C: 3 d: 81.39 lr: 0.60 i: False s: False u: True
+tensor(1341) tensor(447) tensor(447)
+Data(x=[2235, 1193], edge_index=[2, 181908], y=[2235], train_mask=[2235], val_mask=[2235], test_mask=[2235])
+tensor(1341) tensor(447) tensor(447)
+E = 181908, S = 6612.0, Ratio = 0.0363
+Best test accuracy throughout: tensor(0.6465, device='cuda:0')
+Mean epoch time:  0.06138819336891174
+Final test accuracy: 0.5794
+----Run2-----
+amherst41 N: 2235 E: 181908 F: 1193 C: 3 d: 81.39 lr: 0.60 i: False s: False u: True
+tensor(1341) tensor(447) tensor(447)
+Data(x=[2235, 1193], edge_index=[2, 181908], y=[2235], train_mask=[2235], val_mask=[2235], test_mask=[2235])
+tensor(1341) tensor(447) tensor(447)
+E = 181908, S = 6612.0, Ratio = 0.0363
+Best test accuracy throughout: tensor(0.6532, device='cuda:0')
+Mean epoch time:  0.05662858247756958
+Final test accuracy: 0.5951
+----Run3-----
+amherst41 N: 2235 E: 181908 F: 1193 C: 3 d: 81.39 lr: 0.60 i: False s: False u: True
+tensor(1341) tensor(447) tensor(447)
+Data(x=[2235, 1193], edge_index=[2, 181908], y=[2235], train_mask=[2235], val_mask=[2235], test_mask=[2235])
+tensor(1341) tensor(447) tensor(447)
+E = 181908, S = 6612.0, Ratio = 0.0363
+Best test accuracy throughout: tensor(0.6488, device='cuda:0')
+Mean epoch time:  0.05624394655227661
+Final test accuracy: 0.5951
+----Run4-----
+amherst41 N: 2235 E: 181908 F: 1193 C: 3 d: 81.39 lr: 0.60 i: False s: False u: True
+tensor(1341) tensor(447) tensor(447)
+Data(x=[2235, 1193], edge_index=[2, 181908], y=[2235], train_mask=[2235], val_mask=[2235], test_mask=[2235])
+tensor(1341) tensor(447) tensor(447)
+E = 181908, S = 6612.0, Ratio = 0.0363
+Best test accuracy throughout: tensor(0.6376, device='cuda:0')
+Mean epoch time:  0.05614624381065369
+Final test accuracy: 0.6107
+----Run5-----
+amherst41 N: 2235 E: 181908 F: 1193 C: 3 d: 81.39 lr: 0.60 i: False s: False u: True
+tensor(1341) tensor(447) tensor(447)
+Data(x=[2235, 1193], edge_index=[2, 181908], y=[2235], train_mask=[2235], val_mask=[2235], test_mask=[2235])
+tensor(1341) tensor(447) tensor(447)
+E = 181908, S = 6612.0, Ratio = 0.0363
+Best test accuracy throughout: tensor(0.6488, device='cuda:0')
+Mean epoch time:  0.054983861446380615
+Final test accuracy: 0.5839
+----penn94-----
+----Run1-----
+penn94 N: 41554 E: 2724458 F: 4814 C: 3 d: 65.56 lr: 0.47 i: False s: False u: True
+tensor(19407) tensor(9703) tensor(9705)
+Data(x=[41554, 4814], edge_index=[2, 2724458], y=[41554], train_mask=[41554], val_mask=[41554], test_mask=[41554])
+tensor(19407) tensor(9703) tensor(9705)
+E = 2724458, S = 121751.0, Ratio = 0.0447
+----Run2-----
+penn94 N: 41554 E: 2724458 F: 4814 C: 3 d: 65.56 lr: 0.47 i: False s: False u: True
+tensor(19407) tensor(9703) tensor(9705)
+Data(x=[41554, 4814], edge_index=[2, 2724458], y=[41554], train_mask=[41554], val_mask=[41554], test_mask=[41554])
+tensor(19407) tensor(9703) tensor(9705)
+E = 2724458, S = 121751.0, Ratio = 0.0447
+----Run3-----
+penn94 N: 41554 E: 2724458 F: 4814 C: 3 d: 65.56 lr: 0.47 i: False s: False u: True
+tensor(19407) tensor(9703) tensor(9705)
+Data(x=[41554, 4814], edge_index=[2, 2724458], y=[41554], train_mask=[41554], val_mask=[41554], test_mask=[41554])
+tensor(19407) tensor(9703) tensor(9705)
+E = 2724458, S = 121751.0, Ratio = 0.0447
+----Run4-----
+penn94 N: 41554 E: 2724458 F: 4814 C: 3 d: 65.56 lr: 0.47 i: False s: False u: True
+tensor(19407) tensor(9703) tensor(9705)
+Data(x=[41554, 4814], edge_index=[2, 2724458], y=[41554], train_mask=[41554], val_mask=[41554], test_mask=[41554])
+tensor(19407) tensor(9703) tensor(9705)
+E = 2724458, S = 121751.0, Ratio = 0.0447
+----Run5-----
+penn94 N: 41554 E: 2724458 F: 4814 C: 3 d: 65.56 lr: 0.47 i: False s: False u: True
+tensor(19407) tensor(9703) tensor(9705)
+Data(x=[41554, 4814], edge_index=[2, 2724458], y=[41554], train_mask=[41554], val_mask=[41554], test_mask=[41554])
+tensor(19407) tensor(9703) tensor(9705)
+E = 2724458, S = 121751.0, Ratio = 0.0447
+----Roman-empire-----
+----Run1-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Best test accuracy throughout: tensor(0.6772, device='cuda:0')
+Mean epoch time:  2.5357280695438384
+Final test accuracy: 0.6678
+----Run2-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Best test accuracy throughout: tensor(0.6772, device='cuda:0')
+Mean epoch time:  2.5321075141429903
+Final test accuracy: 0.6678
+----Run3-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Best test accuracy throughout: tensor(0.6772, device='cuda:0')
+Mean epoch time:  2.5284541201591493
+Final test accuracy: 0.6678
+----Run4-----
+---NeuralSparseResults------=
+----Cora-----
+----Run1-----
+Cora N: 19793 E: 126842 F: 8710 C: 70 d: 6.41 lr: 0.20 i: False s: False u: True
+tensor(3958) tensor(7917) tensor(7918)
+Data(x=[19793, 8710], edge_index=[2, 126842], y=[19793], train_mask=[19793], val_mask=[19793], test_mask=[19793])
+tensor(3958) tensor(7917) tensor(7918)
+E = 126842, S = 49468.0, Ratio = 0.3900
+Best test accuracy throughout: tensor(0.5147, device='cuda:0')
+Mean epoch time:  0.7607839930057526
+Final test accuracy: 0.5032
+----Run2-----
+Cora N: 19793 E: 126842 F: 8710 C: 70 d: 6.41 lr: 0.20 i: False s: False u: True
+tensor(3958) tensor(7917) tensor(7918)
+Data(x=[19793, 8710], edge_index=[2, 126842], y=[19793], train_mask=[19793], val_mask=[19793], test_mask=[19793])
+tensor(3958) tensor(7917) tensor(7918)
+E = 126842, S = 49468.0, Ratio = 0.3900
+Best test accuracy throughout: tensor(0.5369, device='cuda:0')
+Mean epoch time:  0.749486290216446
+Final test accuracy: 0.5034
+----Run3-----
+Cora N: 19793 E: 126842 F: 8710 C: 70 d: 6.41 lr: 0.20 i: False s: False u: True
+tensor(3958) tensor(7917) tensor(7918)
+Data(x=[19793, 8710], edge_index=[2, 126842], y=[19793], train_mask=[19793], val_mask=[19793], test_mask=[19793])
+tensor(3958) tensor(7917) tensor(7918)
+E = 126842, S = 49468.0, Ratio = 0.3900
+Best test accuracy throughout: tensor(0.5269, device='cuda:0')
+Mean epoch time:  0.7573892796039581
+Final test accuracy: 0.4900
+----Run4-----
+Cora N: 19793 E: 126842 F: 8710 C: 70 d: 6.41 lr: 0.20 i: False s: False u: True
+tensor(3958) tensor(7917) tensor(7918)
+Data(x=[19793, 8710], edge_index=[2, 126842], y=[19793], train_mask=[19793], val_mask=[19793], test_mask=[19793])
+tensor(3958) tensor(7917) tensor(7918)
+E = 126842, S = 49468.0, Ratio = 0.3900
+Best test accuracy throughout: tensor(0.5287, device='cuda:0')
+Mean epoch time:  0.76587970495224
+Final test accuracy: 0.5066
+----Run5-----
+Cora N: 19793 E: 126842 F: 8710 C: 70 d: 6.41 lr: 0.20 i: False s: False u: True
+tensor(3958) tensor(7917) tensor(7918)
+Data(x=[19793, 8710], edge_index=[2, 126842], y=[19793], train_mask=[19793], val_mask=[19793], test_mask=[19793])
+tensor(3958) tensor(7917) tensor(7918)
+E = 126842, S = 49468.0, Ratio = 0.3900
+Best test accuracy throughout: tensor(0.5336, device='cuda:0')
+Mean epoch time:  0.7550663149356842
+Final test accuracy: 0.5131
+----dblp-----
+----Run1-----
+----Run2-----
+----Run3-----
+----Run4-----
+----Run5-----
+----Computers-----
+----Run1-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 39417.0, Ratio = 0.0802
+Best test accuracy throughout: tensor(0.3748, device='cuda:0')
+Mean epoch time:  0.373228931427002
+Final test accuracy: 0.2828
+----Run2-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 39417.0, Ratio = 0.0802
+Best test accuracy throughout: tensor(0.3740, device='cuda:0')
+Mean epoch time:  0.37046239376068113
+Final test accuracy: 0.1516
+----Run3-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 39417.0, Ratio = 0.0802
+Best test accuracy throughout: tensor(0.3722, device='cuda:0')
+Mean epoch time:  0.3784518384933472
+Final test accuracy: 0.3610
+----Run4-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 39417.0, Ratio = 0.0802
+Best test accuracy throughout: tensor(0.3748, device='cuda:0')
+Mean epoch time:  0.3732315254211426
+Final test accuracy: 0.0342
+----Run5-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 39417.0, Ratio = 0.0802
+Best test accuracy throughout: tensor(0.3748, device='cuda:0')
+Mean epoch time:  0.37478808641433714
+Final test accuracy: 0.0374
+---NeuralSparseResults------=
+----Computers-----
+----Run1-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.6859, device='cuda:0')
+Mean epoch time:  0.4050595009326935
+Final test accuracy: 0.6827
+----Run2-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.7001, device='cuda:0')
+Mean epoch time:  0.3852329313755035
+Final test accuracy: 0.6961
+----Run2-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.5267, device='cuda:0')
+Mean epoch time:  0.37237486481666565
+Final test accuracy: 0.5245
+----Run3-----
+---NeuralSparseResults------=
+----Computers-----
+----Run1-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.5089, device='cuda:0')
+Mean epoch time:  0.44038272976875303
+Final test accuracy: 0.4308
+----Run4-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.6841, device='cuda:0')
+Mean epoch time:  0.3887075209617615
+Final test accuracy: 0.6841
+----Run5-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.5881, device='cuda:0')
+Mean epoch time:  0.4060193157196045
+Final test accuracy: 0.2741
+----Run2-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.6678, device='cuda:0')
+Mean epoch time:  0.43701056599617005
+Final test accuracy: 0.6678
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.7514, device='cuda:0')
+Mean epoch time:  0.3838721857070923
+Final test accuracy: 0.6270
+----Run3-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.7695, device='cuda:0')
+Mean epoch time:  0.37207822942733765
+Final test accuracy: 0.7197
+----Run4-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.7343, device='cuda:0')
+Mean epoch time:  0.37347546672821047
+Final test accuracy: 0.7288
+----Run5-----
+Computers N: 13752 E: 491722 F: 767 C: 10 d: 35.76 lr: 0.60 i: True s: False u: True
+tensor(8251) tensor(2750) tensor(2751)
+Data(x=[13752, 767], edge_index=[2, 491722], y=[13752], train_mask=[13752], val_mask=[13752], test_mask=[13752])
+tensor(8251) tensor(2750) tensor(2751)
+E = 491722, S = 118614.0, Ratio = 0.2412
+Best test accuracy throughout: tensor(0.7550, device='cuda:0')
+Mean epoch time:  0.371198842048645
+Final test accuracy: 0.7532
+---NeuralSparseResults------=
+----Cora_ML-----
+----Run1-----
+Cora_ML N: 2995 E: 16316 F: 2879 C: 7 d: 5.45 lr: 0.20 i: False s: False u: True
+tensor(599) tensor(1198) tensor(1198)
+Data(x=[2995, 2879], edge_index=[2, 16316], y=[2995], train_mask=[2995], val_mask=[2995], test_mask=[2995])
+tensor(599) tensor(1198) tensor(1198)
+E = 16316, S = 12991.0, Ratio = 0.7962
+Best test accuracy throughout: tensor(0.8255, device='cuda:0')
+Mean epoch time:  0.02793890380859375
+Final test accuracy: 0.7813
+----Run2-----
+Cora_ML N: 2995 E: 16316 F: 2879 C: 7 d: 5.45 lr: 0.20 i: False s: False u: True
+tensor(599) tensor(1198) tensor(1198)
+Data(x=[2995, 2879], edge_index=[2, 16316], y=[2995], train_mask=[2995], val_mask=[2995], test_mask=[2995])
+tensor(599) tensor(1198) tensor(1198)
+E = 16316, S = 12991.0, Ratio = 0.7962
+Best test accuracy throughout: tensor(0.8139, device='cuda:0')
+Mean epoch time:  0.02718130970001221
+Final test accuracy: 0.7880
+----Run3-----
+Cora_ML N: 2995 E: 16316 F: 2879 C: 7 d: 5.45 lr: 0.20 i: False s: False u: True
+tensor(599) tensor(1198) tensor(1198)
+Data(x=[2995, 2879], edge_index=[2, 16316], y=[2995], train_mask=[2995], val_mask=[2995], test_mask=[2995])
+tensor(599) tensor(1198) tensor(1198)
+E = 16316, S = 12991.0, Ratio = 0.7962
+Best test accuracy throughout: tensor(0.8197, device='cuda:0')
+Mean epoch time:  0.02640912675857544
+Final test accuracy: 0.8030
+----Run4-----
+Cora_ML N: 2995 E: 16316 F: 2879 C: 7 d: 5.45 lr: 0.20 i: False s: False u: True
+tensor(599) tensor(1198) tensor(1198)
+Data(x=[2995, 2879], edge_index=[2, 16316], y=[2995], train_mask=[2995], val_mask=[2995], test_mask=[2995])
+tensor(599) tensor(1198) tensor(1198)
+E = 16316, S = 12991.0, Ratio = 0.7962
+Best test accuracy throughout: tensor(0.8088, device='cuda:0')
+Mean epoch time:  0.0279585018157959
+Final test accuracy: 0.7287
+----Run5-----
+Cora_ML N: 2995 E: 16316 F: 2879 C: 7 d: 5.45 lr: 0.20 i: False s: False u: True
+tensor(599) tensor(1198) tensor(1198)
+Data(x=[2995, 2879], edge_index=[2, 16316], y=[2995], train_mask=[2995], val_mask=[2995], test_mask=[2995])
+tensor(599) tensor(1198) tensor(1198)
+E = 16316, S = 12991.0, Ratio = 0.7962
+Best test accuracy throughout: tensor(0.8105, device='cuda:0')
+Mean epoch time:  0.02783268165588379
+Final test accuracy: 0.7997
+---NeuralSparseResults------=
+----dblp-----
+----Run1-----
+----Run2-----
+----Run3-----
+----Run4-----
+----Run5-----
+---NeuralSparseResults------=
+----DBLP-----
+----Run1-----
+DBLP N: 17716 E: 105734 F: 1639 C: 4 d: 5.97 lr: 0.20 i: False s: False u: True
+tensor(3543) tensor(7086) tensor(7087)
+Data(x=[17716, 1639], edge_index=[2, 105734], y=[17716], train_mask=[17716], val_mask=[17716], test_mask=[17716])
+tensor(3543) tensor(7086) tensor(7087)
+E = 105734, S = 40536.0, Ratio = 0.3834
+Best test accuracy throughout: tensor(0.8012, device='cuda:0')
+Mean epoch time:  0.5815905632972718
+Final test accuracy: 0.7357
+----Run2-----
+DBLP N: 17716 E: 105734 F: 1639 C: 4 d: 5.97 lr: 0.20 i: False s: False u: True
+tensor(3543) tensor(7086) tensor(7087)
+Data(x=[17716, 1639], edge_index=[2, 105734], y=[17716], train_mask=[17716], val_mask=[17716], test_mask=[17716])
+tensor(3543) tensor(7086) tensor(7087)
+E = 105734, S = 40536.0, Ratio = 0.3834
+Best test accuracy throughout: tensor(0.8001, device='cuda:0')
+Mean epoch time:  0.5854425611495971
+Final test accuracy: 0.7412
+----Run3-----
+DBLP N: 17716 E: 105734 F: 1639 C: 4 d: 5.97 lr: 0.20 i: False s: False u: True
+tensor(3543) tensor(7086) tensor(7087)
+Data(x=[17716, 1639], edge_index=[2, 105734], y=[17716], train_mask=[17716], val_mask=[17716], test_mask=[17716])
+tensor(3543) tensor(7086) tensor(7087)
+E = 105734, S = 40536.0, Ratio = 0.3834
+Best test accuracy throughout: tensor(0.8036, device='cuda:0')
+Mean epoch time:  0.5859035720825195
+Final test accuracy: 0.7250
+---NeuralSparseResults------=
+----Questions-----
+----Run1-----
+---NeuralSparseResults------=
+----Questions-----
+----Run1-----
+----Run2-----
+----Run3-----
+---NeuralSparseResults------=
+----Questions-----
+----Run1-----
+---NeuralSparseResults------=
+----Amazon-ratings-----
+----Run1-----
+---NeuralSparseResults------=
+----SmallCora-----
+----Run1-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Best test accuracy throughout: tensor(0.7400, device='cuda:0')
+Mean epoch time:  0.04799676418304443
+Final test accuracy: 0.7170
+----Run2-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Best test accuracy throughout: tensor(0.7480, device='cuda:0')
+Mean epoch time:  0.047175726890563964
+Final test accuracy: 0.6510
+----Run3-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Best test accuracy throughout: tensor(0.7600, device='cuda:0')
+Mean epoch time:  0.047772827625274655
+Final test accuracy: 0.7080
+----Run4-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Best test accuracy throughout: tensor(0.7550, device='cuda:0')
+Mean epoch time:  0.048988338470458984
+Final test accuracy: 0.7270
+----Run5-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Best test accuracy throughout: tensor(0.7480, device='cuda:0')
+Mean epoch time:  0.04802399730682373
+Final test accuracy: 0.7250
+---NeuralSparseResults------=
+----SmallCora-----
+----Run1-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Convergence achieved at Epoch: 55, Loss: 0.0026, Temp: 0.9512, Acc: 1.0000
+Best test accuracy throughout: tensor(0.7550, device='cuda:0')
+Mean epoch time:  0.05982824238863858
+Final test accuracy: 0.6830
+----Run2-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Convergence achieved at Epoch: 59, Loss: 0.0022, Temp: 0.9512, Acc: 1.0000
+Best test accuracy throughout: tensor(0.7520, device='cuda:0')
+Mean epoch time:  0.05918053045111187
+Final test accuracy: 0.6940
+----Run3-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Convergence achieved at Epoch: 51, Loss: 0.0008, Temp: 0.9512, Acc: 1.0000
+Best test accuracy throughout: tensor(0.7650, device='cuda:0')
+Mean epoch time:  0.061295214821310604
+Final test accuracy: 0.6550
+----Run4-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Convergence achieved at Epoch: 59, Loss: 0.0022, Temp: 0.9512, Acc: 1.0000
+Best test accuracy throughout: tensor(0.7520, device='cuda:0')
+Mean epoch time:  0.05769635055024745
+Final test accuracy: 0.6740
+----Run5-----
+SmallCora N: 2708 E: 10556 F: 1433 C: 7 d: 3.90 lr: 0.05 i: False s: False u: True
+tensor(140) tensor(500) tensor(1000)
+Data(x=[2708, 1433], edge_index=[2, 10556], y=[2708], train_mask=[2708], val_mask=[2708], test_mask=[2708])
+tensor(140) tensor(500) tensor(1000)
+E = 10556, S = 6571.0, Ratio = 0.6225
+Convergence achieved at Epoch: 48, Loss: 0.0017, Temp: 1.0000, Acc: 1.0000
+Best test accuracy throughout: tensor(0.7570, device='cuda:0')
+Mean epoch time:  0.06355065107345581
+Final test accuracy: 0.6930
+---NeuralSparseResults------=
+----johnshopkins55-----
+----Run1-----
+johnshopkins55 N: 5180 E: 373172 F: 2406 C: 3 d: 72.04 lr: 0.60 i: False s: False u: True
+tensor(3108) tensor(1036) tensor(1036)
+Data(x=[5180, 2406], edge_index=[2, 373172], y=[5180], train_mask=[5180], val_mask=[5180], test_mask=[5180])
+tensor(3108) tensor(1036) tensor(1036)
+E = 373172, S = 15018.0, Ratio = 0.0402
+Convergence achieved at Epoch: 123, Loss: 0.0304, Temp: 0.9048, Acc: 0.9929
+Best test accuracy throughout: tensor(0.5463, device='cuda:0')
+Mean epoch time:  0.2143721386669128
+Final test accuracy: 0.5222
+----Run2-----
+johnshopkins55 N: 5180 E: 373172 F: 2406 C: 3 d: 72.04 lr: 0.60 i: False s: False u: True
+tensor(3108) tensor(1036) tensor(1036)
+Data(x=[5180, 2406], edge_index=[2, 373172], y=[5180], train_mask=[5180], val_mask=[5180], test_mask=[5180])
+tensor(3108) tensor(1036) tensor(1036)
+E = 373172, S = 15018.0, Ratio = 0.0402
+Convergence achieved at Epoch: 123, Loss: 0.0294, Temp: 0.9048, Acc: 0.9936
+Best test accuracy throughout: tensor(0.5463, device='cuda:0')
+Mean epoch time:  0.21161957872592338
+Final test accuracy: 0.5183
+----Run3-----
+johnshopkins55 N: 5180 E: 373172 F: 2406 C: 3 d: 72.04 lr: 0.60 i: False s: False u: True
+tensor(3108) tensor(1036) tensor(1036)
+Data(x=[5180, 2406], edge_index=[2, 373172], y=[5180], train_mask=[5180], val_mask=[5180], test_mask=[5180])
+tensor(3108) tensor(1036) tensor(1036)
+E = 373172, S = 15018.0, Ratio = 0.0402
+Convergence achieved at Epoch: 116, Loss: 0.0331, Temp: 0.9048, Acc: 0.9920
+Best test accuracy throughout: tensor(0.5463, device='cuda:0')
+Mean epoch time:  0.21265310871190038
+Final test accuracy: 0.5232
+----Run4-----
+johnshopkins55 N: 5180 E: 373172 F: 2406 C: 3 d: 72.04 lr: 0.60 i: False s: False u: True
+tensor(3108) tensor(1036) tensor(1036)
+Data(x=[5180, 2406], edge_index=[2, 373172], y=[5180], train_mask=[5180], val_mask=[5180], test_mask=[5180])
+tensor(3108) tensor(1036) tensor(1036)
+E = 373172, S = 15018.0, Ratio = 0.0402
+Convergence achieved at Epoch: 118, Loss: 0.0334, Temp: 0.9048, Acc: 0.9923
+Best test accuracy throughout: tensor(0.5483, device='cuda:0')
+Mean epoch time:  0.21201348102698891
+Final test accuracy: 0.5145
+----Run5-----
+---NeuralSparseResults------=
+----Squirrel-----
+----Run1-----
+Squirrel N: 5201 E: 396846 F: 2345 C: 5 d: 76.30 lr: 0.48 i: False s: True u: True
+tensor(2496) tensor(1664) tensor(1041)
+Data(x=[5201, 2345], edge_index=[2, 396846], y=[5201], train_mask=[5201], val_mask=[5201], test_mask=[5201])
+tensor(2496) tensor(1664) tensor(1041)
+E = 396846, S = 15127.0, Ratio = 0.0381
+Convergence achieved at Epoch: 51, Loss: 1.6069, Temp: 0.9512, Acc: 0.1927
+Best test accuracy throughout: tensor(0.2056, device='cuda:0')
+Mean epoch time:  0.1609055247961306
+Final test accuracy: 0.1979
+----Run2-----
+Squirrel N: 5201 E: 396846 F: 2345 C: 5 d: 76.30 lr: 0.48 i: False s: True u: True
+tensor(2496) tensor(1664) tensor(1041)
+Data(x=[5201, 2345], edge_index=[2, 396846], y=[5201], train_mask=[5201], val_mask=[5201], test_mask=[5201])
+tensor(2496) tensor(1664) tensor(1041)
+E = 396846, S = 15127.0, Ratio = 0.0381
+Convergence achieved at Epoch: 51, Loss: 1.6071, Temp: 0.9512, Acc: 0.1939
+Best test accuracy throughout: tensor(0.2056, device='cuda:0')
+Mean epoch time:  0.16114025489956724
+Final test accuracy: 0.1969
+----Run3-----
+Squirrel N: 5201 E: 396846 F: 2345 C: 5 d: 76.30 lr: 0.48 i: False s: True u: True
+tensor(2496) tensor(1664) tensor(1041)
+Data(x=[5201, 2345], edge_index=[2, 396846], y=[5201], train_mask=[5201], val_mask=[5201], test_mask=[5201])
+tensor(2496) tensor(1664) tensor(1041)
+E = 396846, S = 15127.0, Ratio = 0.0381
+Convergence achieved at Epoch: 51, Loss: 1.6069, Temp: 0.9512, Acc: 0.1927
+Best test accuracy throughout: tensor(0.2056, device='cuda:0')
+Mean epoch time:  0.15918640996895583
+Final test accuracy: 0.1979
+----Run4-----
+Squirrel N: 5201 E: 396846 F: 2345 C: 5 d: 76.30 lr: 0.48 i: False s: True u: True
+tensor(2496) tensor(1664) tensor(1041)
+Data(x=[5201, 2345], edge_index=[2, 396846], y=[5201], train_mask=[5201], val_mask=[5201], test_mask=[5201])
+tensor(2496) tensor(1664) tensor(1041)
+E = 396846, S = 15127.0, Ratio = 0.0381
+Convergence achieved at Epoch: 51, Loss: 1.6068, Temp: 0.9512, Acc: 0.1935
+Best test accuracy throughout: tensor(0.2056, device='cuda:0')
+Mean epoch time:  0.16121601590923235
+Final test accuracy: 0.1979
+----Run5-----
+Squirrel N: 5201 E: 396846 F: 2345 C: 5 d: 76.30 lr: 0.48 i: False s: True u: True
+tensor(2496) tensor(1664) tensor(1041)
+Data(x=[5201, 2345], edge_index=[2, 396846], y=[5201], train_mask=[5201], val_mask=[5201], test_mask=[5201])
+tensor(2496) tensor(1664) tensor(1041)
+E = 396846, S = 15127.0, Ratio = 0.0381
+Convergence achieved at Epoch: 54, Loss: 1.6064, Temp: 0.9512, Acc: 0.2007
+Best test accuracy throughout: tensor(0.2056, device='cuda:0')
+Mean epoch time:  0.15867928663889566
+Final test accuracy: 0.2008
+---NeuralSparseResults------=
+----Roman-Empire-----
+----Run1-----
+----Run2-----
+----Run3-----
+----Run4-----
+----Run5-----
+---NeuralSparseResults------=
+----Roman-empire-----
+----Run1-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Convergence achieved at Epoch: 196, Loss: 0.2428, Temp: 0.8607, Acc: 0.9264
+Best test accuracy throughout: tensor(0.6460, device='cuda:0')
+Mean epoch time:  0.940774951662336
+Final test accuracy: 0.6329
+----Run2-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Convergence achieved at Epoch: 196, Loss: 0.2428, Temp: 0.8607, Acc: 0.9264
+Best test accuracy throughout: tensor(0.6460, device='cuda:0')
+Mean epoch time:  0.9435610065654833
+Final test accuracy: 0.6329
+----Run3-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Convergence achieved at Epoch: 196, Loss: 0.2428, Temp: 0.8607, Acc: 0.9264
+Best test accuracy throughout: tensor(0.6460, device='cuda:0')
+Mean epoch time:  0.9404044443247269
+Final test accuracy: 0.6329
+----Run4-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Convergence achieved at Epoch: 196, Loss: 0.2428, Temp: 0.8607, Acc: 0.9264
+Best test accuracy throughout: tensor(0.6460, device='cuda:0')
+Mean epoch time:  0.9579412669551616
+Final test accuracy: 0.6329
+----Run5-----
+Roman-empire N: 22662 E: 65854 F: 300 C: 18 d: 2.91 lr: 0.50 i: False s: False u: True
+tensor(11331) tensor(5665) tensor(5666)
+Data(x=[22662, 300], edge_index=[2, 65854], y=[22662], train_mask=[22662], val_mask=[22662], test_mask=[22662])
+tensor(11331) tensor(5665) tensor(5666)
+E = 65854, S = 58543.0, Ratio = 0.8890
+Convergence achieved at Epoch: 196, Loss: 0.2428, Temp: 0.8607, Acc: 0.9264
+Best test accuracy throughout: tensor(0.6460, device='cuda:0')
+Mean epoch time:  0.9567554337637765
+Final test accuracy: 0.6329
+---NeuralSparseResults------=
+----CiteSeer-----
+----Run1-----
+CiteSeer N: 4230 E: 10674 F: 602 C: 6 d: 2.52 lr: 0.20 i: False s: False u: True
+tensor(846) tensor(1692) tensor(1692)
+Data(x=[4230, 602], edge_index=[2, 10674], y=[4230], train_mask=[4230], val_mask=[4230], test_mask=[4230])
+tensor(846) tensor(1692) tensor(1692)
+E = 10674, S = 7401.0, Ratio = 0.6934
+Convergence achieved at Epoch: 41, Loss: 0.0072, Temp: 1.0000, Acc: 0.9976
+Best test accuracy throughout: tensor(0.9113, device='cuda:0')
+Mean epoch time:  0.05677993704633015
+Final test accuracy: 0.9043
+----Run2-----
+CiteSeer N: 4230 E: 10674 F: 602 C: 6 d: 2.52 lr: 0.20 i: False s: False u: True
+tensor(846) tensor(1692) tensor(1692)
+Data(x=[4230, 602], edge_index=[2, 10674], y=[4230], train_mask=[4230], val_mask=[4230], test_mask=[4230])
+tensor(846) tensor(1692) tensor(1692)
+E = 10674, S = 7401.0, Ratio = 0.6934
+Convergence achieved at Epoch: 41, Loss: 0.0072, Temp: 1.0000, Acc: 0.9976
+Best test accuracy throughout: tensor(0.9113, device='cuda:0')
+Mean epoch time:  0.04762557657753549
+Final test accuracy: 0.9043
+----Run3-----
+CiteSeer N: 4230 E: 10674 F: 602 C: 6 d: 2.52 lr: 0.20 i: False s: False u: True
+tensor(846) tensor(1692) tensor(1692)
+Data(x=[4230, 602], edge_index=[2, 10674], y=[4230], train_mask=[4230], val_mask=[4230], test_mask=[4230])
+tensor(846) tensor(1692) tensor(1692)
+E = 10674, S = 7401.0, Ratio = 0.6934
+Convergence achieved at Epoch: 41, Loss: 0.0072, Temp: 1.0000, Acc: 0.9976
+Best test accuracy throughout: tensor(0.9113, device='cuda:0')
+Mean epoch time:  0.04957709661344203
+Final test accuracy: 0.9043
+----Run4-----
+CiteSeer N: 4230 E: 10674 F: 602 C: 6 d: 2.52 lr: 0.20 i: False s: False u: True
+tensor(846) tensor(1692) tensor(1692)
+Data(x=[4230, 602], edge_index=[2, 10674], y=[4230], train_mask=[4230], val_mask=[4230], test_mask=[4230])
+tensor(846) tensor(1692) tensor(1692)
+E = 10674, S = 7401.0, Ratio = 0.6934
+Convergence achieved at Epoch: 41, Loss: 0.0072, Temp: 1.0000, Acc: 0.9976
+Best test accuracy throughout: tensor(0.9113, device='cuda:0')
+Mean epoch time:  0.0504278904054223
+Final test accuracy: 0.9043
+----Run5-----
+CiteSeer N: 4230 E: 10674 F: 602 C: 6 d: 2.52 lr: 0.20 i: False s: False u: True
+tensor(846) tensor(1692) tensor(1692)
+Data(x=[4230, 602], edge_index=[2, 10674], y=[4230], train_mask=[4230], val_mask=[4230], test_mask=[4230])
+tensor(846) tensor(1692) tensor(1692)
+E = 10674, S = 7401.0, Ratio = 0.6934
+Convergence achieved at Epoch: 41, Loss: 0.0072, Temp: 1.0000, Acc: 0.9976
+Best test accuracy throughout: tensor(0.9113, device='cuda:0')
+Mean epoch time:  0.047512461499470034
+Final test accuracy: 0.9043

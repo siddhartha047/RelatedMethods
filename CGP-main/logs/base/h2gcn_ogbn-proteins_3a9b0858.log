@@ -1,0 +1,20 @@
+13:08:48: Namespace(batch_size=100, batch_size_jac=200, test_batch_size=100, multiplier=1, epochs=5, lr=0.01, momentum=0.9, no_cuda=False, seed=17, log_interval=100, optimizer='adam', save='17430089280001194.pt', data='ogbn-proteins', decay_frequency=25000, l1=0.0, fp16=False, valid_split=0.1, resume=None, start_epoch=1, model='h2gcn', l2=0.0005, iters=2, save_features=False, bench=False, max_threads=10, decay_schedule='cosine', growth_schedule='gradient', lr_scheduler=False, adj_sparse=False, feature_sparse=False, weight_sparse=False, dim=512, cuda=0, fagcn_layer_num=1, fagcn_dropout=0, fagcn_eps=0.1, mixhop_layer_num=1, mixhop_dropout=0, mixhop_hop=2, gprgnn_alpha=0.1, gprgnn_k=10, h2gcn_dropout=0.1, growth='gradient', prune='magnitude', redistribution='none', prune_rate=0.5, pruning_rate=0.5, sparse=False, fix=False, update_frequency=100, sparse_init='ERK', method='GraNet', init_density=1.0, final_density=0.05, init_density_adj=1.0, final_density_adj=0.5, init_density_feature=1.0, final_density_feature=0.5, init_prune_epoch=0, final_prune_epoch=110, rm_first=False)
+13:08:48: 
+
+
+13:08:48: ================================================================================
+13:08:48: 
+Iteration start: 1/2
+
+13:09:02: HGCN(
+  (lin1): Linear(in_features=8, out_features=512, bias=True)
+  (lin): Linear(in_features=2560, out_features=94, bias=True)
+)
+13:09:02: ============================================================
+13:09:02: h2gcn
+13:09:02: ============================================================
+13:09:02: ============================================================
+13:09:02: Prune mode: magnitude
+13:09:02: Growth mode: gradient
+13:09:02: Redistribution mode: none
+13:09:02: ============================================================

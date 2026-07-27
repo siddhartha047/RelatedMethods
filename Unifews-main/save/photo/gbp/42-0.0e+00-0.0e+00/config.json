@@ -1,0 +1,28 @@
+{
+    "data": "photo",
+    "path": "./data/",
+    "algo": "gbp",
+    "epochs": 250,
+    "patience": 20,
+    "batch": 512,
+    "lr": 0.01,
+    "weight_decay": 1e-05,
+    "layer": 2,
+    "hidden": 512,
+    "dropout": 0.5,
+    "thr_a": 0.0,
+    "thr_w": 0.0,
+    "inductive": false,
+    "multil": false,
+    "edge_keep_ratio": 1.0,
+    "chn": {
+        "hop": 20,
+        "alpha": 0.1,
+        "rrz": 0.5,
+        "delta": 0.0
+    },
+    "seed": 42,
+    "dev": 0,
+    "config": "./config/sgs_rebuttal_mb.json",
+    "suffix": ""
+}
