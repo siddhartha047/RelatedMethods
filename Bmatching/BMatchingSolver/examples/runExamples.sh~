@@ -1,0 +1,5 @@
+#!/bin/sh
+
+# run unipartite weight matrix example
+
+../Release/BMatchingSolver -w uni_example_weights.txt -d uni_example_degrees.txt -n 10 -o uni_example_solution.txt -v 1
