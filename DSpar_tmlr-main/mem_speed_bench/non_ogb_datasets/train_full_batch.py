@@ -15,6 +15,9 @@ SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).re
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
+from ICML_SPARSIFICATION.scripts.common.baseline_result_utils import (
+    multilabel_roc_auc_f1_percent,
+)
 
 import torch
 import torch.nn.functional as F
@@ -91,12 +94,28 @@ def to_inductive(data):
     return data
 
 
-def train(model, optimizer, data, loss_op, grad_norm, scaler, amp_mode):
+def supervised_loss(logits, labels):
+    if labels.dim() == 1 or (labels.dim() > 1 and labels.size(-1) == 1):
+        labels = labels.reshape(-1)
+        valid = labels >= 0
+        return F.cross_entropy(logits[valid], labels[valid])
+    valid = torch.isfinite(labels) & (labels >= 0)
+    losses = F.binary_cross_entropy_with_logits(
+        logits,
+        torch.nan_to_num(labels, nan=0.0).float(),
+        reduction='none',
+    )
+    return losses[valid].mean()
+
+
+def train(model, optimizer, data, grad_norm, scaler, amp_mode):
     model.train()
     optimizer.zero_grad()
     with autocast(enabled=amp_mode):
         out = model(data.x, data.adj_t)
-        loss = loss_op(out[data.train_mask], data.y[data.train_mask])
+        loss = supervised_loss(
+            out[data.train_mask], data.y[data.train_mask]
+        )
     del data
     if amp_mode:
         scaler.scale(loss).backward()
@@ -148,17 +167,38 @@ def compute_macro_f1(logits, y, mask=None) -> float:
     return float(f1_score(truth, prediction, average='macro', zero_division=0))
 
 
+def compute_multilabel_metrics(logits, y, mask=None):
+    if mask is not None:
+        logits, y = logits[mask], y[mask]
+    roc_auc, macro_f1 = multilabel_roc_auc_f1_percent(y, logits)
+    return roc_auc / 100.0, macro_f1 / 100.0
+
+
 @torch.no_grad()
 def test(model, data, amp_mode):
     model.eval()
     with autocast(enabled=amp_mode):
         out = model(data.x, data.adj_t)
     y_true = data.y
-    train_acc = compute_micro_f1(out, y_true, data.train_mask)
-    valid_acc = compute_micro_f1(out, y_true, data.val_mask)
-    test_acc = compute_micro_f1(out, y_true, data.test_mask)
-    train_f1 = compute_macro_f1(out, y_true, data.train_mask)
-    test_f1 = compute_macro_f1(out, y_true, data.test_mask)
+    if y_true.dim() > 1 and y_true.size(-1) > 1:
+        # OGBN-Proteins' official metric is mean per-task ROC-AUC.  The old
+        # non-OGB bridge reported micro-F1 in the accuracy field, which is why
+        # otherwise valid runs appeared as roughly 8% accuracy.
+        train_acc, train_f1 = compute_multilabel_metrics(
+            out, y_true, data.train_mask
+        )
+        valid_acc, _ = compute_multilabel_metrics(
+            out, y_true, data.val_mask
+        )
+        test_acc, test_f1 = compute_multilabel_metrics(
+            out, y_true, data.test_mask
+        )
+    else:
+        train_acc = compute_micro_f1(out, y_true, data.train_mask)
+        valid_acc = compute_micro_f1(out, y_true, data.val_mask)
+        test_acc = compute_micro_f1(out, y_true, data.test_mask)
+        train_f1 = compute_macro_f1(out, y_true, data.train_mask)
+        test_f1 = compute_macro_f1(out, y_true, data.test_mask)
     return train_acc, valid_acc, test_acc, train_f1, test_f1
 
 
@@ -247,7 +287,6 @@ def main():
 
     GNN = getattr(models, model_config['arch_name'])
     model = GNN(in_channels=num_features, out_channels=num_classes, **model_config['architecture'])
-    loss_op = F.binary_cross_entropy_with_logits if multi_label else F.cross_entropy
     print(model)
     model.to(device)
 
@@ -286,7 +325,7 @@ def main():
         data_mem = init_mem / MB - exp_recorder.val_dict['model_only']
         exp_recorder.record("data", init_mem / MB - exp_recorder.val_dict['model_only'], 4)
         out = model(data.x, data.adj_t)[data.train_mask]
-        loss = loss_op(out, data.y[data.train_mask])
+        loss = supervised_loss(out, data.y[data.train_mask])
         print("========== Before Backward ===========")
         before_backward = get_memory_usage(args.gpu, True)
         act_mem = get_memory_usage(args.gpu, False) - init_mem - compute_tensor_bytes([loss, out])
@@ -320,7 +359,7 @@ def main():
                 if device.type == 'cuda':
                     torch.cuda.synchronize()
                 out = model(data.x, data.adj_t)[data.train_mask]
-                loss = loss_op(out, data.y[data.train_mask])
+                loss = supervised_loss(out, data.y[data.train_mask])
                 loss.backward()
                 optimizer.step()
                 if device.type == 'cuda':
@@ -364,11 +403,12 @@ def main():
         print('inductive learning mode')
         data = to_inductive(data)
     logger = Logger(args.runs, args)
+    metric_name = 'ROC-AUC' if multi_label else 'Accuracy'
     for run in range(args.runs):
         model.reset_parameters()
         optimizer = get_optimizer(model_config, model)
         for epoch in range(1, 1 + model_config['epochs']):
-            loss = train(model, optimizer, data, loss_op, args.grad_norm, scaler, args.amp)
+            loss = train(model, optimizer, data, args.grad_norm, scaler, args.amp)
             print(f'Run: {run + 1:02d}, '
                     f'Epoch: {epoch:02d}, '
                     f'Train Loss: {loss:.4f}')
@@ -378,9 +418,9 @@ def main():
             train_acc, valid_acc, test_acc, train_f1, test_f1 = result
             print(f'Run: {run + 1:02d}, '
                     f'Epoch: {epoch:02d}, '
-                    f'Train f1: {100 * train_acc:.2f}%, '
-                    f'Valid f1: {100 * valid_acc:.2f}% '
-                    f'Test f1: {100 * test_acc:.2f}% '
+                    f'Train {metric_name}: {100 * train_acc:.2f}%, '
+                    f'Valid {metric_name}: {100 * valid_acc:.2f}% '
+                    f'Test {metric_name}: {100 * test_acc:.2f}% '
                     f'Test F1 Macro: {100 * test_f1:.2f}%')
 
         logger.add_result(run, result)

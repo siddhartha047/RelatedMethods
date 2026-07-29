@@ -52,6 +52,52 @@ class SpLearner(nn.Module):
                 x = self.activation(x)
         return x
 
+    def edge_forward(self, features, indices, values):
+        """Apply the edge MLP without materializing two E-by-F tensors.
+
+        The original implementation concatenated the source and destination
+        feature vectors for every edge before the first linear layer.  On
+        Coauthor-Physics this requires tens of GiB because F=8,415.  A linear
+        layer over ``[x_u, x_v, w_uv]`` is exactly equal to the sum of three
+        smaller projections, so project node features first and only gather
+        the compact hidden representations per edge.
+        """
+        first = self.layers[0]
+        feature_dim = int(features.size(-1))
+        edge_values = values.reshape(-1, 1)
+        value_dim = int(edge_values.size(-1))
+        expected = 2 * feature_dim + value_dim
+        if int(first.in_features) != expected:
+            raise ValueError(
+                f"edge MLP expects {first.in_features} inputs, but "
+                f"2 * {feature_dim} node features + {value_dim} edge values "
+                f"gives {expected}"
+            )
+
+        source_projection = F.linear(
+            features, first.weight[:, :feature_dim], bias=None
+        )
+        target_projection = F.linear(
+            features,
+            first.weight[:, feature_dim : 2 * feature_dim],
+            bias=None,
+        )
+        x = source_projection.index_select(0, indices[0])
+        x = x + target_projection.index_select(0, indices[1])
+        x = x + F.linear(
+            edge_values,
+            first.weight[:, 2 * feature_dim :],
+            bias=first.bias,
+        )
+
+        if len(self.layers) > 1:
+            x = self.activation(x)
+        for layer_index, layer in enumerate(self.layers[1:], start=1):
+            x = layer(x)
+            if layer_index != len(self.layers) - 1:
+                x = self.activation(x)
+        return x
+
     def gumbel_softmax_sample(self, indices,values, temperature, shape, training):
         """Draw a sample from the Gumbel-Softmax distribution"""
         r = self.sample_gumble(values.shape)
@@ -69,12 +115,7 @@ class SpLearner(nn.Module):
         return -torch.log(-torch.log(U + eps) + eps)
 
     def forward(self, features, indices,values,shape, temperature,training=None):
-        f1_features = torch.index_select(features, 0, indices[0, :])
-        f2_features = torch.index_select(features, 0, indices[1, :])
-        auv = torch.unsqueeze(values, -1)
-        
-        temp = torch.cat([f1_features,f2_features,auv],-1)
-        temp = self.internal_forward(temp)
+        temp = self.edge_forward(features, indices, values)
         z = torch.reshape(temp, [-1])
         z = F.normalize(z,dim=0)
         
@@ -107,11 +148,8 @@ class SpLearner(nn.Module):
         masked_scores = masked_scores.index_select(dim=-1,index = idx_resort_idx)
         masked_scores = masked_scores.index_select(dim=-1,index = val_resort_idx)
         return masked_scores
-        
+
     def write_tensor(self,x,msg):
         with open('temp.txt', "w+") as log_file:
             log_file.write(msg)
             np.savetxt(log_file,x.cpu().detach().numpy())
-        
-        
-        

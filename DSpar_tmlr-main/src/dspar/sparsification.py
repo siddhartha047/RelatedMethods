@@ -8,24 +8,140 @@ import dspar.cpp_extension.sampler as sampler
 from torch_geometric.utils import degree, to_undirected
 
 
+_MULTINOMIAL_CATEGORY_LIMIT = 1 << 24
+_LARGE_SAMPLE_CHUNK_SIZE = 1 << 24
+
+
+def _chunked_weighted_edge_sample(
+    probabilities,
+    budget,
+    generator,
+    *,
+    chunk_size=_LARGE_SAMPLE_CHUNK_SIZE,
+):
+    """Weighted sampling without replacement without a category-count limit.
+
+    Exponential-race keys produce the same Plackett-Luce weighted
+    without-replacement distribution as sequential multinomial sampling.
+    Keeping only the best ``budget`` keys after each chunk bounds temporary
+    GPU memory independently of the total number of edges.
+    """
+
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be positive")
+
+    selected_scores = torch.empty(
+        0,
+        dtype=probabilities.dtype,
+        device=probabilities.device,
+    )
+    selected_indices = torch.empty(
+        0,
+        dtype=torch.long,
+        device=probabilities.device,
+    )
+    edge_count = probabilities.numel()
+
+    for start in range(0, edge_count, chunk_size):
+        end = min(start + chunk_size, edge_count)
+        weights = probabilities[start:end]
+        scores = torch.empty_like(weights)
+        scores.exponential_(1.0, generator=generator)
+        scores.div_(weights)
+
+        local_count = min(budget, scores.numel())
+        if local_count < scores.numel():
+            local_scores, local_offsets = torch.topk(
+                scores,
+                local_count,
+                largest=False,
+                sorted=False,
+            )
+            local_indices = local_offsets.add(start)
+        else:
+            local_scores = scores
+            local_indices = torch.arange(
+                start,
+                end,
+                dtype=torch.long,
+                device=probabilities.device,
+            )
+
+        if selected_scores.numel() == 0:
+            selected_scores = local_scores
+            selected_indices = local_indices
+            continue
+
+        candidate_scores = torch.cat((selected_scores, local_scores))
+        candidate_indices = torch.cat((selected_indices, local_indices))
+        keep_count = min(budget, candidate_scores.numel())
+        if keep_count < candidate_scores.numel():
+            selected_scores, keep_offsets = torch.topk(
+                candidate_scores,
+                keep_count,
+                largest=False,
+                sorted=False,
+            )
+            selected_indices = candidate_indices[keep_offsets]
+        else:
+            selected_scores = candidate_scores
+            selected_indices = candidate_indices
+
+    return selected_indices
+
+
 def _exact_weighted_edge_sample(probabilities, budget, seed):
     """Sample an exact number of unique edge indices without replacement."""
 
+    if probabilities.ndim != 1:
+        raise ValueError("probabilities must be one-dimensional")
+    if not probabilities.is_floating_point():
+        raise TypeError("probabilities must use a floating-point dtype")
+
     edge_count = probabilities.numel()
-    if budget >= edge_count:
+    if budget < 0:
+        raise ValueError("budget must be non-negative")
+    if budget == 0:
+        indices = torch.empty(
+            0,
+            dtype=torch.long,
+            device=probabilities.device,
+        )
+    elif budget >= edge_count:
         indices = torch.arange(edge_count, device=probabilities.device)
     else:
+        if not bool(torch.isfinite(probabilities).all()):
+            raise ValueError("probabilities must be finite")
+        if bool((probabilities < 0).any()):
+            raise ValueError("probabilities must be non-negative")
+        positive_count = int(torch.count_nonzero(probabilities).item())
+        if positive_count < budget:
+            raise ValueError(
+                "budget exceeds the number of edges with positive probability"
+            )
+
         generator_device = (
             probabilities.device if probabilities.is_cuda else "cpu"
         )
         generator = torch.Generator(device=generator_device)
         generator.manual_seed(seed)
-        indices = torch.multinomial(
-            probabilities,
-            budget,
-            replacement=False,
-            generator=generator,
-        )
+        if edge_count > _MULTINOMIAL_CATEGORY_LIMIT:
+            print(
+                "weighted edge count exceeds safe multinomial limit; "
+                "using chunked exponential-race sampling"
+            )
+            indices = _chunked_weighted_edge_sample(
+                probabilities,
+                budget,
+                generator,
+            )
+        else:
+            indices = torch.multinomial(
+                probabilities,
+                budget,
+                replacement=False,
+                generator=generator,
+            )
     counts = torch.ones(
         indices.numel(),
         dtype=probabilities.dtype,

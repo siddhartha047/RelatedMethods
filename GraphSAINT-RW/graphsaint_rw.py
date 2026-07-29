@@ -31,7 +31,11 @@ SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).re
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 from EDSparseDataset import load_pyg_data
-from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result, macro_f1_percent
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    append_baseline_result,
+    macro_f1_percent,
+    multilabel_roc_auc_f1_percent,
+)
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_CACHE_DIR, DEFAULT_DATA_DIR
 
 
@@ -124,23 +128,33 @@ def load_sgs_dataset(dataset_name: str, data_root: str):
         if data.y.size(-1) == 1:
             data.y = data.y.view(-1)
         else:
-            data.y = data.y.argmax(dim=-1)
+            # Preserve OGBN-Proteins' 112 independent binary targets.
+            data.y = data.y.to(torch.float)
     else:
         data.y = data.y.view(-1)
-    data.y = data.y.to(torch.long)
+    if data.y.dim() == 1:
+        data.y = data.y.to(torch.long)
     return dataset, data
 
 
 class SaintNet(torch.nn.Module):
     """3-layer GraphConv with concat + linear head — matches PyG's graph_saint.py."""
 
-    def __init__(self, in_channels: int, hidden_channels: int, out_channels: int, dropout: float = 0.2):
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_channels: int,
+        out_channels: int,
+        dropout: float = 0.2,
+        multilabel: bool = False,
+    ):
         super().__init__()
         self.conv1 = GraphConv(in_channels, hidden_channels)
         self.conv2 = GraphConv(hidden_channels, hidden_channels)
         self.conv3 = GraphConv(hidden_channels, hidden_channels)
         self.lin = torch.nn.Linear(3 * hidden_channels, out_channels)
         self.dropout = dropout
+        self.multilabel = bool(multilabel)
 
     def set_aggr(self, aggr: str):
         self.conv1.aggr = aggr
@@ -156,7 +170,7 @@ class SaintNet(torch.nn.Module):
         x3 = F.dropout(x3, p=self.dropout, training=self.training)
         x = torch.cat([x1, x2, x3], dim=-1)
         x = self.lin(x)
-        return x.log_softmax(dim=-1)
+        return x if self.multilabel else x.log_softmax(dim=-1)
 
     @torch.no_grad()
     def inference(self, x_all: torch.Tensor, subgraph_loader: NeighborLoader, device: torch.device):
@@ -194,7 +208,10 @@ class SaintNet(torch.nn.Module):
             block = torch.cat(
                 [h1[start:end], h2[start:end], h3[start:end]], dim=-1
             ).to(device)
-            out[start:end] = self.lin(block).log_softmax(dim=-1).cpu()
+            block_output = self.lin(block)
+            if not self.multilabel:
+                block_output = block_output.log_softmax(dim=-1)
+            out[start:end] = block_output.cpu()
         return out
 
 
@@ -208,7 +225,15 @@ def macro_f1(pred: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor) -> fl
 
 
 @torch.no_grad()
-def evaluate(model, data, use_normalization, device, full_graph_eval, subgraph_loader):
+def evaluate(
+    model,
+    data,
+    use_normalization,
+    device,
+    full_graph_eval,
+    subgraph_loader,
+    multilabel,
+):
     # Follows PyG's examples/graph_saint.py test(): plain
     #   correct[mask].sum() / mask.sum()
     # accuracy on the full graph. Both eval paths (full-graph vs layer-wise
@@ -219,16 +244,39 @@ def evaluate(model, data, use_normalization, device, full_graph_eval, subgraph_l
         logits = model(data.x.to(device), data.edge_index.to(device))
     else:
         logits = model.inference(data.x, subgraph_loader, device)
+    if multilabel:
+        labels = data.y.cpu()
+        logits = logits.cpu()
+
+        def _metric(mask):
+            mask = mask.cpu().bool()
+            metric, f1 = multilabel_roc_auc_f1_percent(
+                labels[mask], logits[mask]
+            )
+            return metric / 100.0, f1 / 100.0
+
+        train_metric, train_f1_macro = _metric(data.train_mask)
+        val_metric, _ = _metric(data.val_mask)
+        test_metric, test_f1_macro = _metric(data.test_mask)
+        return (
+            train_metric,
+            val_metric,
+            test_metric,
+            train_f1_macro,
+            test_f1_macro,
+        )
+
     pred = logits.argmax(dim=-1)
     labels = data.y.to(pred.device)
     correct = pred.eq(labels)
 
     def _acc(mask):
         mask = mask.to(pred.device).bool()
-        denom = int(mask.sum().item())
+        valid = mask & (labels >= 0)
+        denom = int(valid.sum().item())
         if denom == 0:
             return 0.0
-        return float(correct[mask].sum().item()) / denom
+        return float(correct[valid].sum().item()) / denom
 
     train_acc = _acc(data.train_mask)
     val_acc = _acc(data.val_mask)
@@ -238,14 +286,42 @@ def evaluate(model, data, use_normalization, device, full_graph_eval, subgraph_l
     return train_acc, val_acc, test_acc, train_f1_macro, test_f1_macro
 
 
-def train_one_run(args, dataset_name, data, num_features, num_classes, run_seed, run_id):
+def _multilabel_loss(logits, labels, node_mask, node_norm=None):
+    valid = torch.isfinite(labels) & (labels >= 0)
+    losses = F.binary_cross_entropy_with_logits(
+        logits,
+        torch.nan_to_num(labels, nan=0.0).float(),
+        reduction="none",
+    )
+    valid_count = valid.sum(dim=-1)
+    per_node = (losses * valid).sum(dim=-1) / valid_count.clamp(min=1)
+    selected = node_mask.bool() & (valid_count > 0)
+    if not bool(selected.any()):
+        return logits.sum() * 0.0
+    if node_norm is not None:
+        return (per_node * node_norm)[selected].sum()
+    return per_node[selected].mean()
+
+
+def train_one_run(
+    args,
+    dataset_name,
+    data,
+    num_features,
+    num_classes,
+    run_seed,
+    run_id,
+    multilabel,
+):
     fix_seed(run_seed)
+    metric_name = "ROC-AUC" if multilabel else "Accuracy"
 
     model = SaintNet(
         in_channels=num_features,
         hidden_channels=args.hidden_channels,
         out_channels=num_classes,
         dropout=args.dropout,
+        multilabel=multilabel,
     ).to(args.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
@@ -314,11 +390,26 @@ def train_one_run(args, dataset_name, data, num_features, num_classes, run_seed,
             if args.use_normalization:
                 edge_weight = batch.edge_norm * batch.edge_weight
                 out = model(batch.x, batch.edge_index, edge_weight)
-                loss = F.nll_loss(out, batch.y, reduction="none")
-                loss = (loss * batch.node_norm)[train_mask_batch].sum()
+                if multilabel:
+                    loss = _multilabel_loss(
+                        out,
+                        batch.y,
+                        train_mask_batch,
+                        node_norm=batch.node_norm,
+                    )
+                else:
+                    loss = F.nll_loss(out, batch.y, reduction="none")
+                    loss = (loss * batch.node_norm)[train_mask_batch].sum()
             else:
                 out = model(batch.x, batch.edge_index)
-                loss = F.nll_loss(out[train_mask_batch], batch.y[train_mask_batch])
+                if multilabel:
+                    loss = _multilabel_loss(
+                        out, batch.y, train_mask_batch
+                    )
+                else:
+                    loss = F.nll_loss(
+                        out[train_mask_batch], batch.y[train_mask_batch]
+                    )
 
             loss.backward()
             optimizer.step()
@@ -330,7 +421,13 @@ def train_one_run(args, dataset_name, data, num_features, num_classes, run_seed,
 
         if epoch == 1 or epoch % args.eval_step == 0 or epoch == args.epochs:
             train_f1, val_f1, test_f1, train_f1_macro, test_f1_macro = evaluate(
-                model, data, args.use_normalization, args.device, full_graph_eval, subgraph_loader
+                model,
+                data,
+                args.use_normalization,
+                args.device,
+                full_graph_eval,
+                subgraph_loader,
+                multilabel,
             )
             avg_loss = total_loss / max(total_examples, 1)
             if val_f1 > best_val:
@@ -348,9 +445,11 @@ def train_one_run(args, dataset_name, data, num_features, num_classes, run_seed,
             )
 
     print(
-        f"run_{run_id} train_f1: {train_f1:.6f} val_f1: {val_f1:.6f} "
-        f"test_f1: {test_f1:.6f} best_val_f1: {best_val:.6f} "
-        f"chosen_test_f1: {chosen_test:.6f} chosen_test_f1_macro: {chosen_test_macro:.6f} "
+        f"run_{run_id} metric={metric_name} train_metric: {train_f1:.6f} "
+        f"val_metric: {val_f1:.6f} test_metric: {test_f1:.6f} "
+        f"best_val_metric: {best_val:.6f} "
+        f"chosen_test_metric: {chosen_test:.6f} "
+        f"chosen_test_f1_macro: {chosen_test_macro:.6f} "
         f"chosen_epoch: {chosen_epoch}"
     )
     append_baseline_result(
@@ -481,8 +580,12 @@ def main():
     deg = torch.clamp(deg, min=1.0)
     data.edge_weight = 1.0 / deg[col]
 
-    labeled = data.y[data.y != -1]
-    num_classes = int(labeled.max().item()) + 1 if labeled.numel() else 0
+    multilabel = data.y.dim() > 1 and data.y.size(-1) > 1
+    if multilabel:
+        num_classes = int(data.y.size(-1))
+    else:
+        labeled = data.y[data.y != -1]
+        num_classes = int(labeled.max().item()) + 1 if labeled.numel() else 0
     num_features = int(data.x.size(1))
 
     resolve_sampler_settings(args, int(data.num_nodes))
@@ -490,7 +593,8 @@ def main():
     print(
         f"dataset {args.dataset} | num nodes {data.num_nodes} | "
         f"num edge {num_edges} | num node feats {num_features} | "
-        f"num classes {num_classes}"
+        f"num outputs {num_classes} | "
+        f"metric {'ROC-AUC' if multilabel else 'Accuracy'}"
     )
     print(
         f"[Resolved sampler] batch_size={args.batch_size} "
@@ -502,13 +606,26 @@ def main():
     run_scores = []
     for run_idx in range(1, args.runs + 1):
         run_seed = args.seed + run_idx - 1
-        score = train_one_run(args, args.dataset, data, num_features, num_classes, run_seed, run_idx)
+        score = train_one_run(
+            args,
+            args.dataset,
+            data,
+            num_features,
+            num_classes,
+            run_seed,
+            run_idx,
+            multilabel,
+        )
         run_scores.append(score)
 
     run_scores = np.asarray(run_scores, dtype=np.float64)
     mean = float(run_scores.mean()) if len(run_scores) else 0.0
     std = float(run_scores.std(ddof=1)) if len(run_scores) > 1 else 0.0
-    print(f"all_runs chosen_test_f1_mean: {mean:.6f} chosen_test_f1_std: {std:.6f}")
+    metric_key = "roc_auc" if multilabel else "accuracy"
+    print(
+        f"all_runs chosen_test_{metric_key}_mean: {mean:.6f} "
+        f"chosen_test_{metric_key}_std: {std:.6f}"
+    )
 
 
 if __name__ == "__main__":

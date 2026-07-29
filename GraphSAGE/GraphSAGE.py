@@ -29,7 +29,11 @@ SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).re
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 from EDSparseDataset import load_pyg_data
-from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result, macro_f1_percent
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    append_baseline_result,
+    macro_f1_percent,
+    multilabel_roc_auc_f1_percent,
+)
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
 
 
@@ -90,8 +94,12 @@ def _prepare_data(data):
     if data.y.dim() > 1 and data.y.size(-1) == 1:
         data.y = data.y.view(-1)
     if data.y.dim() > 1:
-        data.y = data.y.argmax(dim=-1)
-    data.y = data.y.to(torch.long)
+        # OGBN-Proteins contains one binary target per protein function.
+        # Converting these labels with argmax turns it into an unrelated
+        # single-class problem and produces a misleading ~98% accuracy.
+        data.y = data.y.to(torch.float)
+    else:
+        data.y = data.y.to(torch.long)
 
     data.edge_index, _ = remove_self_loops(data.edge_index)
     if not is_undirected(data.edge_index):
@@ -100,40 +108,76 @@ def _prepare_data(data):
     return data
 
 
-def train_one_epoch(model, loader, optimizer, device):
+def _supervised_loss(logits, labels, multilabel):
+    if not multilabel:
+        valid = labels.reshape(-1) >= 0
+        return F.cross_entropy(logits[valid], labels.reshape(-1)[valid])
+    valid = torch.isfinite(labels) & (labels >= 0)
+    losses = F.binary_cross_entropy_with_logits(
+        logits,
+        torch.nan_to_num(labels, nan=0.0).float(),
+        reduction="none",
+    )
+    return losses[valid].mean()
+
+
+def train_one_epoch(model, loader, optimizer, device, multilabel=False):
     # Features/labels already live on ``device`` (see ``data.to(device, "x", "y")``
     # in main). PyG's examples/reddit.py only moves ``edge_index`` per batch —
     # doing a full ``batch.to(device)`` would round-trip x/y through H2D each
     # step for no reason.
     model.train()
     total_loss = 0.0
+    total_loss_examples = 0
     total_correct = 0
     total_examples = 0
     for batch in loader:
         optimizer.zero_grad()
         y = batch.y[: batch.batch_size]
         y_hat = model(batch.x, batch.edge_index.to(device))[: batch.batch_size]
-        loss = F.cross_entropy(y_hat, y)
+        loss = _supervised_loss(y_hat, y, multilabel)
         loss.backward()
         optimizer.step()
         total_loss += float(loss) * batch.batch_size
-        total_correct += int((y_hat.argmax(dim=-1) == y).sum())
-        total_examples += int(batch.batch_size)
-    return total_loss / max(total_examples, 1), total_correct / max(total_examples, 1)
+        total_loss_examples += int(batch.batch_size)
+        if multilabel:
+            valid = torch.isfinite(y) & (y >= 0)
+            total_correct += int(((y_hat >= 0) == (y >= 0.5))[valid].sum())
+            total_examples += int(valid.sum())
+        else:
+            total_correct += int((y_hat.argmax(dim=-1) == y).sum())
+            total_examples += int(batch.batch_size)
+    return (
+        total_loss / max(total_loss_examples, 1),
+        total_correct / max(total_examples, 1),
+    )
 
 
 @torch.no_grad()
-def evaluate(model, data, subgraph_loader, device):
+def evaluate(model, data, subgraph_loader, device, multilabel=False):
     model.eval()
-    y_hat = model.inference(data.x, subgraph_loader, device).argmax(dim=-1)
-    y = data.y.to(y_hat.device)
-    accs = []
+    logits = model.inference(data.x, subgraph_loader, device)
+    y = data.y
+    metrics = []
     f1s = []
     for mask in [data.train_mask, data.val_mask, data.test_mask]:
-        mask = mask.to(y_hat.device).bool()
-        accs.append(int((y_hat[mask] == y[mask]).sum()) / int(mask.sum().item() or 1))
-        f1s.append(macro_f1_percent(y[mask], y_hat[mask]) / 100.0)
-    return accs, f1s
+        mask = mask.cpu().bool()
+        if multilabel:
+            metric, f1 = multilabel_roc_auc_f1_percent(
+                y.cpu()[mask], logits[mask]
+            )
+            metrics.append(metric / 100.0)
+            f1s.append(f1 / 100.0)
+        else:
+            prediction = logits[mask].argmax(dim=-1)
+            labels = y.cpu()[mask]
+            valid = labels >= 0
+            metrics.append(
+                int((prediction[valid] == labels[valid]).sum())
+                / int(valid.sum().item() or 1)
+            )
+            f1s.append(macro_f1_percent(labels[valid], prediction[valid]) / 100.0)
+    return metrics, f1s
 
 
 def main():
@@ -176,8 +220,13 @@ def main():
     elif len(fanout) > args.num_layers:
         fanout = fanout[: args.num_layers]
 
-    labeled = data.y[data.y >= 0]
-    num_classes = int(labeled.max().item()) + 1 if labeled.numel() else 0
+    multilabel = data.y.dim() > 1 and data.y.size(-1) > 1
+    if multilabel:
+        num_classes = int(data.y.size(-1))
+    else:
+        labeled = data.y[data.y >= 0]
+        num_classes = int(labeled.max().item()) + 1 if labeled.numel() else 0
+    metric_name = "ROC-AUC" if multilabel else "Accuracy"
 
     print(
         f"dataset {args.dataset} | num nodes {data.num_nodes} | num edge {data.edge_index.size(1)} | "
@@ -244,10 +293,12 @@ def main():
         times = []
         for epoch in range(1, args.epochs + 1):
             t0 = time.time()
-            loss, approx_train = train_one_epoch(model, train_loader, optimizer, device)
+            loss, approx_train = train_one_epoch(
+                model, train_loader, optimizer, device, multilabel
+            )
             if epoch == 1 or epoch % args.eval_step == 0 or epoch == args.epochs:
                 (train_acc, val_acc, test_acc), (train_f1, val_f1, test_f1) = evaluate(
-                    model, data, subgraph_loader, device
+                    model, data, subgraph_loader, device, multilabel
                 )
                 if val_acc > best_val:
                     best_val = val_acc
@@ -265,7 +316,8 @@ def main():
             epoch, train_acc, val_acc, test_acc, train_f1, test_f1 = best
             print(
                 f"Run {run_idx} best epoch {epoch:03d} | "
-                f"Final Test Accuracy {100 * test_acc:.2f} | Final Test F1 Macro {100 * test_f1:.2f} | "
+                f"Final Test {metric_name} {100 * test_acc:.2f} | "
+                f"Final Test F1 Macro {100 * test_f1:.2f} | "
                 f"Median epoch {float(np.median(times)):.2f}s"
             )
             append_baseline_result(
@@ -287,7 +339,10 @@ def main():
         arr = np.asarray(all_run_test, dtype=np.float64)
         mean = float(arr.mean())
         std = float(arr.std(ddof=1)) if len(arr) > 1 else 0.0
-        print(f"all_runs chosen_test_acc_mean: {mean:.6f} chosen_test_acc_std: {std:.6f}")
+        print(
+            f"all_runs chosen_test_{metric_name.lower()}_mean: {mean:.6f} "
+            f"chosen_test_{metric_name.lower()}_std: {std:.6f}"
+        )
 
 
 if __name__ == "__main__":
