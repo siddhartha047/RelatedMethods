@@ -26,7 +26,8 @@ if str(TUNEDGNN_ROOT) not in sys.path:
 from EDSparseDataset import (  # noqa: E402
     CANONICAL_DATASETS,
     canonicalize_dataset_name,
-    load_pyg_data as load_edsparse_pyg_data,
+    load_edsparse_bundle,
+    split_fingerprint,
 )
 
 EDSPARSE_DATASETS = frozenset(CANONICAL_DATASETS)
@@ -93,7 +94,16 @@ def load_dataset(data_dir, dataname, sub_dataname=''):
     dataname = canonicalize_dataset_name(dataname)
     print(dataname)
     if dataname in EDSPARSE_DATASETS:
-        data, _ = load_edsparse_pyg_data(data_dir, dataname)
+        bundle = load_edsparse_bundle(data_dir, dataname)
+        data = bundle.data
+        fixed_splits = [
+            {
+                'train': split['train'].clone(),
+                'valid': split['valid'].clone(),
+                'test': split['test'].clone(),
+            }
+            for split in bundle.splits
+        ]
         dataset = NCDataset(dataname)
         dataset.graph = {
             'edge_index': data.edge_index,
@@ -102,10 +112,20 @@ def load_dataset(data_dir, dataname, sub_dataname=''):
             'num_nodes': data.num_nodes,
         }
         dataset.label = data.y
-        dataset.train_idx = torch.where(data.train_mask)[0]
-        dataset.valid_idx = torch.where(data.val_mask)[0]
-        dataset.test_idx = torch.where(data.test_mask)[0]
-        dataset.load_fixed_splits = dataset.get_idx_split
+        dataset.train_idx = fixed_splits[0]['train']
+        dataset.valid_idx = fixed_splits[0]['valid']
+        dataset.test_idx = fixed_splits[0]['test']
+        dataset.load_fixed_splits = lambda: (
+            fixed_splits[0] if len(fixed_splits) == 1 else fixed_splits
+        )
+        print(
+            "[EDSparseDataset] "
+            f"dataset={bundle.name} split_protocol={bundle.split_protocol} "
+            f"splits={len(fixed_splits)} "
+            "split_fingerprints="
+            + ",".join(split_fingerprint(split) for split in fixed_splits),
+            flush=True,
+        )
         return dataset
     if dataname in  ('amazon-photo', 'amazon-computer'):
         dataset = load_amazon_dataset(data_dir, dataname)

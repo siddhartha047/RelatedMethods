@@ -23,6 +23,10 @@ TUNEDGNN_ROOT = Path(__file__).resolve().parents[1]
 if str(TUNEDGNN_ROOT) not in sys.path:
     sys.path.insert(0, str(TUNEDGNN_ROOT))
 from EDSparseDataset import load_pyg_data
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    append_baseline_result,
+    macro_f1_percent,
+)
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
 
 
@@ -105,7 +109,9 @@ class GNN(torch.nn.Module):
         return self.lin2(x)
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--dataset', type=str, default='ogbn-products')
 parser.add_argument('--device', type=int, default=0)
+parser.add_argument('--seed', type=int, default=42)
 parser.add_argument('--hidden_channels', type=int, default=160)
 parser.add_argument('--num_layers', type=int, default=5)
 parser.add_argument('--epochs', type=int, default=1001)
@@ -121,17 +127,21 @@ parser.add_argument('--data_dir', type=str, default=DEFAULT_DATA_DIR)
 args = parser.parse_args()
 print(args)
 
+torch.manual_seed(args.seed)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
 device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'
 device = torch.device(device)
 transform = T.Compose([T.ToDevice(device), T.ToSparseTensor()])
 
-data, _ = load_pyg_data(args.data_dir, 'ogbn-products')
+data, _ = load_pyg_data(args.data_dir, args.dataset, seed=args.seed)
 data.edge_index, _ = add_self_loops(data.edge_index, num_nodes=data.num_nodes)
 if data.y.dim() == 1:
     data.y = data.y.view(-1, 1)
 num_classes = int(data.y.max().item()) + 1
 num_features = int(data.x.size(1))
-evaluator = Evaluator(name='ogbn-products')
+evaluator = Evaluator(name='ogbn-products') if args.dataset == 'ogbn-products' else None
 
 train_loader = RandomNodeLoader(data, num_parts=10, shuffle=True,
                                 num_workers=args.loader_workers)
@@ -189,38 +199,40 @@ def test(epoch):
             y_true[split].append(data.y[mask].cpu())
             y_pred[split].append(out[mask].cpu())
 
-    train_acc = evaluator.eval({
-        'y_true': torch.cat(y_true['train'], dim=0),
-        'y_pred': torch.cat(y_pred['train'], dim=0),
-    })['acc']
+    def accuracy(split):
+        truth = torch.cat(y_true[split], dim=0)
+        prediction = torch.cat(y_pred[split], dim=0)
+        if evaluator is not None:
+            return evaluator.eval({'y_true': truth, 'y_pred': prediction})['acc']
+        return float((truth.view(-1) == prediction.view(-1)).float().mean())
 
-    valid_acc = evaluator.eval({
-        'y_true': torch.cat(y_true['valid'], dim=0),
-        'y_pred': torch.cat(y_pred['valid'], dim=0),
-    })['acc']
+    train_acc = accuracy('train')
+    valid_acc = accuracy('valid')
+    test_acc = accuracy('test')
 
-    test_acc = evaluator.eval({
-        'y_true': torch.cat(y_true['test'], dim=0),
-        'y_pred': torch.cat(y_pred['test'], dim=0),
-    })['acc']
-
-    return train_acc, valid_acc, test_acc
+    test_f1 = macro_f1_percent(
+        torch.cat(y_true['test'], dim=0),
+        torch.cat(y_pred['test'], dim=0),
+    )
+    return train_acc, valid_acc, test_acc, test_f1
 
 
 times = []
 best_val = 0.0
 final_train = 0.0
 final_test = 0.0
+final_test_f1 = 0.0
 for epoch in range(1, args.epochs):
     start = time.time()
     loss = train(epoch)
     should_eval = epoch == args.epochs - 1 or epoch % args.eval_step == 0
     if should_eval:
-        train_acc, val_acc, test_acc = test(epoch)
+        train_acc, val_acc, test_acc, test_f1 = test(epoch)
         if val_acc > best_val:
             best_val = val_acc
             final_train = train_acc
             final_test = test_acc
+            final_test_f1 = test_f1
         if epoch % args.display_step == 0 or epoch == args.epochs - 1:
             print(f'Epoch: {epoch:02d}, '
                       f'Loss: {loss:.4f}, '
@@ -237,3 +249,16 @@ print(f'Final Train: {100 * final_train:.2f}%, '
         f'Best Valid: {100 * best_val:.2f}%, '
         f'Best Test: {100 * final_test:.2f}%')
 print(f"Median time per epoch: {torch.tensor(times).median():.4f}s")
+
+print(f"Final Test F1 (Macro): {final_test_f1:.2f}")
+append_baseline_result(
+    method=os.environ.get('BASELINE_METHOD', 'tunedgnn'),
+    dataset=args.dataset,
+    run=1,
+    seed=args.seed,
+    epochs=args.epochs,
+    train_acc=100.0 * final_train,
+    valid_acc=100.0 * best_val,
+    test_acc=100.0 * final_test,
+    test_f1_macro=final_test_f1,
+)

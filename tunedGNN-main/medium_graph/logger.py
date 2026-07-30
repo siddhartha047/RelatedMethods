@@ -1,3 +1,4 @@
+import os
 import torch
 from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result
 
@@ -32,7 +33,7 @@ class Logger(object):
                 print(f'Final Test F1 (Macro): {result[ind, 5]:.2f}')
             self.test=result[ind, 2]
             append_baseline_result(
-                method='tunedgnn',
+                method=os.environ.get('BASELINE_METHOD', 'tunedgnn'),
                 dataset=getattr(self.info, 'dataset', None),
                 run=run + 1,
                 seed=getattr(self.info, 'seed', None),
