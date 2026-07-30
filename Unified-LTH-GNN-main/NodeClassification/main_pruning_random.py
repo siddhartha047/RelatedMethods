@@ -27,7 +27,6 @@ warnings.filterwarnings('ignore')
 
 def run_fix_mask(args, seed, adj_percent, wei_percent):
 
-    pruning.setup_seed(seed)
     device = torch.device(args['device'])
     adj, features, labels, idx_train, idx_val, idx_test = load_data(args['dataset'], args['data_root'])
     
@@ -42,7 +41,16 @@ def run_fix_mask(args, seed, adj_percent, wei_percent):
     idx_test = idx_test.to(device)
     loss_func = nn.CrossEntropyLoss()
 
-    net_gcn = net.net_gcn(embedding_dim=args['embedding_dim'], adj=adj)
+    net_gcn = net.net_gcn(
+        embedding_dim=args['embedding_dim'],
+        adj=adj,
+        dropout=args['dropout'],
+        input_dropout=args['input_dropout'],
+        pre_linear=bool(args['pre_linear']),
+        residual=bool(args['residual']),
+        layer_norm=bool(args['layer_norm']),
+        batch_norm=bool(args['batch_norm']),
+    )
     pruning.add_mask(net_gcn)
     net_gcn = net_gcn.to(device)
     pruning.random_pruning(net_gcn, adj_percent, wei_percent)
@@ -119,6 +127,16 @@ def parser_loader():
     parser.add_argument('--embedding-dim', nargs='+', type=int, default=[3703,16,6])
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--weight-decay', type=float, default=5e-4)
+    parser.add_argument('--hidden_channels', type=int, default=512)
+    parser.add_argument('--num_layers', type=int, default=2)
+    parser.add_argument('--dropout', type=float, default=0.5)
+    parser.add_argument('--input_dropout', type=float, default=0.0)
+    parser.add_argument('--runs', type=int, default=1)
+    parser.add_argument('--metric', choices=('acc', 'rocauc'), default='acc')
+    parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--residual', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--layer_norm', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--batch_norm', type=int, choices=(0, 1), default=0)
     return parser
 
 
@@ -132,7 +150,11 @@ if __name__ == "__main__":
     seed = args['seed'] if args['seed'] is not None else seed_dict.get(args['dataset'].lower(), 3846)
     if args['embedding_dim'] == [3703, 16, 6]:
         base_dim = utils.infer_embedding_dim(args['data_root'], args['dataset'])
-        args['embedding_dim'] = base_dim
+        args['embedding_dim'] = (
+            [base_dim[0]]
+            + [args['hidden_channels']] * (args['num_layers'] - 1)
+            + [base_dim[-1]]
+        )
 
     if args['prune_rounds'] < 1:
         raise ValueError('prune_rounds must be positive')
@@ -148,22 +170,40 @@ if __name__ == "__main__":
         )
         for i in range(args['prune_rounds'])
     ]
-    for p, (adj_percent, wei_percent) in enumerate(percent_list):
-        
-        best_acc_val, final_acc_test, final_epoch_list, adj_spar, wei_spar, train_acc, train_f1, test_f1 = run_fix_mask(args, seed, adj_percent, wei_percent)
-        print("=" * 120)
-        print("syd : Sparsity:[{}], Best Val:[{:.2f}] at epoch:[{}] | Final Test Acc:[{:.2f}] Final Test F1 Macro:[{:.2f}] Adj:[{:.2f}%] Wei:[{:.2f}%]"
-            .format(p + 1,  best_acc_val * 100, final_epoch_list, final_acc_test * 100, test_f1 * 100, adj_spar, wei_spar))
-        print("=" * 120)
-        print(
-            f"[TargetRatio] requested_kept={requested_kept_ratio:.8f} "
-            f"round={p + 1}/{args['prune_rounds']} "
-            f"achieved_kept={adj_spar / 100.0:.8f}"
-        )
+    pruning.setup_seed(seed)
+    for run in range(args['runs']):
+        os.environ['EDSPARSE_SPLIT_RUN'] = str(run)
+        print(f"[TunedGNNProtocol] run={run + 1}/{args['runs']} seed={seed}")
+        final_result = None
+        for p, (adj_percent, wei_percent) in enumerate(percent_list):
+            final_result = run_fix_mask(
+                args, seed, adj_percent, wei_percent
+            )
+            (
+                best_acc_val,
+                final_acc_test,
+                final_epoch_list,
+                adj_spar,
+                wei_spar,
+                train_acc,
+                train_f1,
+                test_f1,
+            ) = final_result
+            print("=" * 120)
+            print("syd : Sparsity:[{}], Best Val:[{:.2f}] at epoch:[{}] | Final Test Acc:[{:.2f}] Final Test F1 Macro:[{:.2f}] Adj:[{:.2f}%] Wei:[{:.2f}%]"
+                .format(p + 1, best_acc_val * 100, final_epoch_list, final_acc_test * 100, test_f1 * 100, adj_spar, wei_spar))
+            print("=" * 120)
+            print(
+                f"[TargetRatio] requested_kept={requested_kept_ratio:.8f} "
+                f"round={p + 1}/{args['prune_rounds']} "
+                f"achieved_kept={adj_spar / 100.0:.8f}"
+            )
+        if final_result is None:
+            raise RuntimeError("Unified-LTH produced no pruning round")
         append_baseline_result(
             method='unified_lth',
             dataset=args['dataset'],
-            run=p + 1,
+            run=run + 1,
             seed=seed,
             epochs=args['total_epoch'],
             kept_ratio=requested_kept_ratio,

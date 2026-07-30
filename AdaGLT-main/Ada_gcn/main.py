@@ -37,7 +37,9 @@ def run_get_mask(args):
 
     net_gcn = net.net_gcn_dense(embedding_dim=args['embedding_dim'], edge_index=adj, device=device, 
                                 spar_wei=args['spar_wei'], spar_adj=args['spar_adj'], num_nodes=features.shape[0],
-                                use_bn=args['use_bn'], use_res=args['use_res'],coef=args['coef'])
+                                use_bn=args['use_bn'], use_res=args['use_res'],
+                                use_ln=args['use_ln'], dropout=args['dropout'],
+                                coef=args['coef'])
     net_gcn = net_gcn.to(device)
 
     optimizer = torch.optim.Adam(net_gcn.parameters(
@@ -171,7 +173,9 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
     
     net_gcn = net.net_gcn_dense(embedding_dim=args['embedding_dim'], edge_index=adj, device=device,
                                 spar_wei=args['spar_wei'], spar_adj=False, num_nodes=features.shape[0],
-                                use_bn=args['use_bn'], use_res=args['use_res'], mode="retain")
+                                use_bn=args['use_bn'], use_res=args['use_res'],
+                                use_ln=args['use_ln'], dropout=args['dropout'],
+                                mode="retain")
     net_gcn = net_gcn.to(device)
 
     utils.rewind_compatible_weights(net_gcn, rewind_weight)
@@ -230,26 +234,33 @@ if __name__ == "__main__":
     # torch.autograd.set_detect_anomaly#(True)
     utils.fix_seed(args['seed'])
     
-    edge_masks, wei_masks, actual_adj_sparsity, rewind_weight = run_get_mask(args)
+    for run in range(args['runs']):
+        os.environ['EDSPARSE_SPLIT_RUN'] = str(run)
+        print(f"[TunedGNNProtocol] run={run + 1}/{args['runs']} seed={args['seed']}")
+        edge_masks, wei_masks, actual_adj_sparsity, rewind_weight = run_get_mask(args)
 
-    if not args['continuous']:
-        best = run_fix_mask(args, edge_masks, wei_masks, rewind_weight=rewind_weight)
-        append_baseline_result(
-            method='adaglt',
-            dataset=args['dataset'],
-            run=1,
-            seed=args['seed'],
-            epochs=args['retain_epoch'],
-            kept_ratio=1.0 - float(args['target_adj_spar']) / 100.0,
-            sparsity=actual_adj_sparsity,
-            train_acc=100 * best['train_acc'],
-            valid_acc=100 * best['val_acc'],
-            test_acc=100 * best['test_acc'],
-            train_f1_macro=100 * best['train_f1'],
-            test_f1_macro=100 * best['test_f1'],
-            chosen_epoch=best['epoch'],
-        )
-    else:
-        print(len(edge_masks))
-        for emask, wmask in zip(edge_masks, wei_masks):
-            run_fix_mask(args, emask, wmask, rewind_weight=rewind_weight)
+        if not args['continuous']:
+            best = run_fix_mask(
+                args, edge_masks, wei_masks, rewind_weight=rewind_weight
+            )
+            append_baseline_result(
+                method='adaglt',
+                dataset=args['dataset'],
+                run=run + 1,
+                seed=args['seed'],
+                epochs=args['retain_epoch'],
+                kept_ratio=1.0 - float(args['target_adj_spar']) / 100.0,
+                sparsity=actual_adj_sparsity,
+                train_acc=100 * best['train_acc'],
+                valid_acc=100 * best['val_acc'],
+                test_acc=100 * best['test_acc'],
+                train_f1_macro=100 * best['train_f1'],
+                test_f1_macro=100 * best['test_f1'],
+                chosen_epoch=best['epoch'],
+            )
+        else:
+            print(len(edge_masks))
+            for emask, wmask in zip(edge_masks, wei_masks):
+                run_fix_mask(
+                    args, emask, wmask, rewind_weight=rewind_weight
+                )

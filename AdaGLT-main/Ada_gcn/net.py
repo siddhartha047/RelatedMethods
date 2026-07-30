@@ -16,7 +16,9 @@ import matplotlib.pyplot as plt
 
 
 class net_gcn_dense(nn.Module):
-    def __init__(self, embedding_dim, edge_index, device, spar_wei, spar_adj, num_nodes, use_res, use_bn, coef=None, mode="prune"):
+    def __init__(self, embedding_dim, edge_index, device, spar_wei, spar_adj,
+                 num_nodes, use_res, use_bn, use_ln=False, dropout=0.5,
+                 coef=None, mode="prune"):
         super().__init__()
 
         self.mode = mode
@@ -30,19 +32,25 @@ class net_gcn_dense(nn.Module):
         self.coef = coef
         
         self.use_bn = use_bn
+        self.use_ln = bool(use_ln)
         self.use_res = use_res
         
         if self.use_bn:
             self.norms = nn.ModuleList()
-            for i in range(self.layer_num):
-                self.norms.append(nn.BatchNorm1d(embedding_dim[i]))
+            for i in range(self.layer_num - 1):
+                self.norms.append(nn.BatchNorm1d(embedding_dim[i + 1]))
+        elif self.use_ln:
+            self.norms = nn.ModuleList(
+                nn.LayerNorm(embedding_dim[i + 1])
+                for i in range(self.layer_num - 1)
+            )
 
         if self.spar_wei:
             self.net_layer = nn.ModuleList([ MaskedLinear(embedding_dim[ln], embedding_dim[ln+1], bias=False) for ln in range(self.layer_num)])
         else:
             self.net_layer = nn.ModuleList([nn.Linear(embedding_dim[ln], embedding_dim[ln+1], bias=False) for ln in range(self.layer_num)])
         self.relu = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=float(dropout))
         self.normalize = utils.torch_normalize_adj
         self.device = device
         
@@ -68,21 +76,23 @@ class net_gcn_dense(nn.Module):
     def forward_retain(self, x, edge_index, val_test, edge_masks, wei_masks):
         adj_ori = self.adj_binary
         for ln in range(self.layer_num):
+            previous = x
             adj = adj_ori * edge_masks[ln] if len(edge_masks) != 0 else adj_ori
             adj = self.normalize(adj, device=self.device)
-            if ln and self.use_bn: x = self.norms[ln](x)
             x = torch.mm(adj, x)
             if  len(wei_masks):
                 x = self.net_layer[ln](x, wei_masks[ln])
             else:
                 x = self.net_layer[ln](x)
-            if not ln: h = x
             if ln == self.layer_num - 1:
                 break
+            if self.use_bn or self.use_ln:
+                x = self.norms[ln](x)
             x = self.relu(x)
             if not val_test:
                 x = self.dropout(x)
-            if ln and self.use_res: x += h
+            if self.use_res and x.shape == previous.shape:
+                x += previous
         return x
 
     def forward(self, x, edge_index, val_test=False, **kwargs):
@@ -99,6 +109,7 @@ class net_gcn_dense(nn.Module):
         adj_ori = to_dense_adj(edge_index, edge_attr=edge_weight, max_num_nodes=self.num_nodes)[0]
         # adj_ori = self.adj_binary        
         for ln in range(self.layer_num):
+            previous = x
             
             adj = adj_ori
             if self.spar_adj and not kwargs['pretrain']:
@@ -110,16 +121,17 @@ class net_gcn_dense(nn.Module):
                 adj = adj_mask * adj_ori
 
             adj = self.normalize(adj, self.device) if not kwargs['pretrain'] else adj_ori
-            if ln and self.use_bn: x = self.norms[ln](x)
             x = torch.mm(adj, x)
             x = self.net_layer[ln](x)
-            if not ln: h = x
             if ln == self.layer_num - 1:
                 break
+            if self.use_bn or self.use_ln:
+                x = self.norms[ln](x)
             x = self.relu(x)
             if not val_test:
                 x = self.dropout(x)
-            if ln and self.use_res: x += h
+            if self.use_res and x.shape == previous.shape:
+                x += previous
         return x
     
     def learn_soft_edge(self, x, edge_index, ln=0):

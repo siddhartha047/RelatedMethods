@@ -20,6 +20,12 @@ def parser_loader():
     parser.add_argument('--data_root', type=str, default=DEFAULT_DATA_DIR)
     parser.add_argument('--lr', type=float, default=0.01)
     parser.add_argument('--weight-decay', type=float, default=5e-4)
+    parser.add_argument('--dropout', type=float, default=0.5)
+    parser.add_argument('--input_dropout', type=float, default=0.0)
+    parser.add_argument('--hidden_channels', type=int, default=512)
+    parser.add_argument('--runs', type=int, default=1)
+    parser.add_argument('--metric', choices=('acc', 'rocauc'), default='acc')
+    parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=0)
     parser.add_argument("--device", type=str, default="cuda:6")
 
     parser.add_argument("--spar_wei", default=False, action='store_true')
@@ -33,6 +39,9 @@ def parser_loader():
     parser.add_argument("--num_layers", type=int)
     parser.add_argument("--use_bn", action="store_true", default=False)
     parser.add_argument("--use_res", action="store_true", default=False)
+    parser.add_argument("--use_bn_value", type=int, choices=(0, 1), default=None)
+    parser.add_argument("--use_res_value", type=int, choices=(0, 1), default=None)
+    parser.add_argument("--use_ln", type=int, choices=(0, 1), default=0)
     parser.add_argument("--e1", type=float, default=5e-5)
     parser.add_argument("--e2", type=float, default=1e-3)
     parser.add_argument("--coef", type=float, default=0.1)
@@ -49,9 +58,17 @@ def parser_loader():
 
     if args['num_layers'] is None:
         args['num_layers'] = 2
+    if args['use_bn_value'] is not None:
+        args['use_bn'] = bool(args['use_bn_value'])
+    if args['use_res_value'] is not None:
+        args['use_res'] = bool(args['use_res_value'])
 
     base_dim = utils.infer_embedding_dim(args['data_root'], args['dataset'])
-    args['embedding_dim'] = [base_dim[0]] + [512] * (args['num_layers'] - 1) + [base_dim[-1]]
+    args['embedding_dim'] = (
+        [base_dim[0]]
+        + [args['hidden_channels']] * (args['num_layers'] - 1)
+        + [base_dim[-1]]
+    )
 
     args["model_save_path"] = os.path.join(
         args["save"], args["model_save_path"])

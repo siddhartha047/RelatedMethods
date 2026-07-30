@@ -27,9 +27,16 @@ def parser_loader():
     parser.add_argument('--weight_decay',type=float,default=1e-4)
     
     # args about gnn
-    parser.add_argument('--hidden_channels',type=float,default=64)
+    parser.add_argument('--hidden_channels',type=int,default=64)
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--dropout', type=float, default=0.5)    
+    parser.add_argument('--input_dropout', type=float, default=0.0)
+    parser.add_argument('--metric', choices=('acc', 'rocauc'), default='acc')
+    parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--residual', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--layer_norm', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--batch_norm', type=int, choices=(0, 1), default=0)
+    parser.add_argument('--jumping_knowledge', type=int, choices=(0, 1), default=0)
     
     # args about SpLearner expert
     parser.add_argument('--hidden_spl',type=float,default=128)

@@ -213,18 +213,61 @@ class SAGEConv(MessagePassing):
 # 定义GCN模型
 class GCN(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers,
-                 dropout):
+                 dropout, input_dropout=0.0, pre_linear=False, residual=False,
+                 layer_norm=False, batch_norm=False, jumping_knowledge=False):
         super(GCN, self).__init__()
-        self.conv1 = GCNConv(in_channels, hidden_channels)
-        self.conv2 = GCNConv(hidden_channels, out_channels)
-        self.dropout = dropout
+        if int(num_layers) < 1:
+            raise ValueError("num_layers must be positive")
+        self.dropout = float(dropout)
+        self.input_dropout = float(input_dropout)
+        self.pre_linear = bool(pre_linear)
+        self.residual = bool(residual)
+        self.layer_norm = bool(layer_norm)
+        self.batch_norm = bool(batch_norm)
+        self.jumping_knowledge = bool(jumping_knowledge)
+        self.input_linear = torch.nn.Linear(in_channels, hidden_channels)
+        self.convs = torch.nn.ModuleList()
+        self.residual_lins = torch.nn.ModuleList()
+        self.layer_norms = torch.nn.ModuleList()
+        self.batch_norms = torch.nn.ModuleList()
+        for layer in range(int(num_layers)):
+            input_channels = (
+                hidden_channels
+                if self.pre_linear or layer > 0
+                else in_channels
+            )
+            self.convs.append(GCNConv(input_channels, hidden_channels))
+            self.residual_lins.append(
+                torch.nn.Linear(input_channels, hidden_channels)
+            )
+            self.layer_norms.append(torch.nn.LayerNorm(hidden_channels))
+            self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.predictor = torch.nn.Linear(hidden_channels, out_channels)
     
     def forward(self, x, edge_index,mask):
-        x = self.conv1(x, edge_index, None,mask)
-        x = F.relu(x)
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.conv2(x, edge_index,None ,mask)
-        return F.log_softmax(x, dim=1)
+        if self.pre_linear:
+            x = self.input_linear(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        elif self.input_dropout > 0:
+            x = F.dropout(
+                x, p=self.input_dropout, training=self.training
+            )
+        combined = None
+        for layer, conv in enumerate(self.convs):
+            previous = x
+            x = conv(x, edge_index, None, mask)
+            if self.residual:
+                x = x + self.residual_lins[layer](previous)
+            if self.layer_norm:
+                x = self.layer_norms[layer](x)
+            elif self.batch_norm:
+                x = self.batch_norms[layer](x)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            combined = x if not self.jumping_knowledge else (
+                x if combined is None else combined + x
+            )
+        return F.log_softmax(self.predictor(combined), dim=1)
 
 
 @torch.jit._overload

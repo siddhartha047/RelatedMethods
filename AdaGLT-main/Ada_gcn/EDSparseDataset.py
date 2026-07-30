@@ -19,6 +19,7 @@ from edsparse.data.connector import (  # noqa: F401
     load_edsparse_bundle,
     load_pyg_data,
     method_scratch_dir,
+    select_pyg_split,
 )
 
 __all__ = [
@@ -27,4 +28,5 @@ __all__ = [
     "load_edsparse_bundle",
     "load_pyg_data",
     "method_scratch_dir",
+    "select_pyg_split",
 ]

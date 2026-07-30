@@ -30,7 +30,7 @@ from torch_geometric.utils import coalesce, degree, is_undirected, remove_self_l
 SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).resolve().parents[2])).resolve()
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
-from EDSparseDataset import load_pyg_data
+from EDSparseDataset import load_pyg_data, select_pyg_split
 from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
     append_baseline_result,
     macro_f1_percent,
@@ -138,37 +138,80 @@ def load_sgs_dataset(dataset_name: str, data_root: str):
 
 
 class SaintNet(torch.nn.Module):
-    """3-layer GraphConv with concat + linear head — matches PyG's graph_saint.py."""
+    """GraphSAINT GraphConv backbone using tunedGNN's dataset preset."""
 
     def __init__(
         self,
         in_channels: int,
         hidden_channels: int,
         out_channels: int,
+        num_layers: int = 3,
         dropout: float = 0.2,
+        input_dropout: float = 0.0,
+        pre_linear: bool = False,
+        residual: bool = False,
+        layer_norm: bool = False,
+        batch_norm: bool = False,
         multilabel: bool = False,
     ):
         super().__init__()
-        self.conv1 = GraphConv(in_channels, hidden_channels)
-        self.conv2 = GraphConv(hidden_channels, hidden_channels)
-        self.conv3 = GraphConv(hidden_channels, hidden_channels)
-        self.lin = torch.nn.Linear(3 * hidden_channels, out_channels)
+        if int(num_layers) < 1:
+            raise ValueError("num_layers must be positive")
+        self.pre_linear = bool(pre_linear)
+        self.residual = bool(residual)
+        self.layer_norm = bool(layer_norm)
+        self.batch_norm = bool(batch_norm)
+        self.input_dropout = float(input_dropout)
+        self.input_linear = torch.nn.Linear(in_channels, hidden_channels)
+        self.convs = torch.nn.ModuleList()
+        self.residual_lins = torch.nn.ModuleList()
+        self.layer_norms = torch.nn.ModuleList()
+        self.batch_norms = torch.nn.ModuleList()
+        for layer in range(int(num_layers)):
+            layer_input = (
+                hidden_channels
+                if self.pre_linear or layer > 0
+                else in_channels
+            )
+            self.convs.append(GraphConv(layer_input, hidden_channels))
+            self.residual_lins.append(
+                torch.nn.Linear(layer_input, hidden_channels)
+            )
+            self.layer_norms.append(torch.nn.LayerNorm(hidden_channels))
+            self.batch_norms.append(torch.nn.BatchNorm1d(hidden_channels))
+        self.lin = torch.nn.Linear(
+            int(num_layers) * hidden_channels, out_channels
+        )
         self.dropout = dropout
         self.multilabel = bool(multilabel)
 
     def set_aggr(self, aggr: str):
-        self.conv1.aggr = aggr
-        self.conv2.aggr = aggr
-        self.conv3.aggr = aggr
+        for conv in self.convs:
+            conv.aggr = aggr
 
     def forward(self, x0, edge_index, edge_weight=None):
-        x1 = F.relu(self.conv1(x0, edge_index, edge_weight))
-        x1 = F.dropout(x1, p=self.dropout, training=self.training)
-        x2 = F.relu(self.conv2(x1, edge_index, edge_weight))
-        x2 = F.dropout(x2, p=self.dropout, training=self.training)
-        x3 = F.relu(self.conv3(x2, edge_index, edge_weight))
-        x3 = F.dropout(x3, p=self.dropout, training=self.training)
-        x = torch.cat([x1, x2, x3], dim=-1)
+        x = x0
+        if self.pre_linear:
+            x = self.input_linear(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        elif self.input_dropout > 0:
+            x = F.dropout(
+                x, p=self.input_dropout, training=self.training
+            )
+        representations = []
+        for layer, conv in enumerate(self.convs):
+            previous = x
+            x = conv(x, edge_index, edge_weight)
+            if self.residual:
+                x = x + self.residual_lins[layer](previous)
+            if self.layer_norm:
+                x = self.layer_norms[layer](x)
+            elif self.batch_norm:
+                x = self.batch_norms[layer](x)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+            representations.append(x)
+        x = torch.cat(representations, dim=-1)
         x = self.lin(x)
         return x if self.multilabel else x.log_softmax(dim=-1)
 
@@ -197,16 +240,43 @@ class SaintNet(torch.nn.Module):
                 xs[n_id_cpu[:bs]] = h[:bs].cpu()
             return xs
 
-        h1 = _run_layer(x_all, self.conv1, apply_relu=True)
-        h2 = _run_layer(h1, self.conv2, apply_relu=True)
-        h3 = _run_layer(h2, self.conv3, apply_relu=True)
-        num_nodes = h3.size(0)
+        if self.pre_linear:
+            projected = []
+            step = 200_000
+            for start in range(0, x_all.size(0), step):
+                projected.append(
+                    self.input_linear(
+                        x_all[start : start + step].to(device)
+                    ).cpu()
+                )
+            x_all = torch.cat(projected, dim=0)
+        representations = []
+        for layer, conv in enumerate(self.convs):
+            previous = x_all
+            x_all = _run_layer(previous, conv, apply_relu=False)
+            if self.residual:
+                residual_blocks = []
+                step = 200_000
+                for start in range(0, previous.size(0), step):
+                    residual_blocks.append(
+                        self.residual_lins[layer](
+                            previous[start : start + step].to(device)
+                        ).cpu()
+                    )
+                x_all = x_all + torch.cat(residual_blocks, dim=0)
+            if self.layer_norm:
+                x_all = self.layer_norms[layer](x_all.to(device)).cpu()
+            elif self.batch_norm:
+                x_all = self.batch_norms[layer](x_all.to(device)).cpu()
+            x_all = F.relu(x_all)
+            representations.append(x_all)
+        num_nodes = x_all.size(0)
         out = torch.empty((num_nodes, self.lin.out_features))
         step = 200_000
         for start in range(0, num_nodes, step):
             end = min(start + step, num_nodes)
             block = torch.cat(
-                [h1[start:end], h2[start:end], h3[start:end]], dim=-1
+                [value[start:end] for value in representations], dim=-1
             ).to(device)
             block_output = self.lin(block)
             if not self.multilabel:
@@ -313,17 +383,27 @@ def train_one_run(
     run_id,
     multilabel,
 ):
-    fix_seed(run_seed)
+    select_pyg_split(data, run_id - 1)
     metric_name = "ROC-AUC" if multilabel else "Accuracy"
 
     model = SaintNet(
         in_channels=num_features,
         hidden_channels=args.hidden_channels,
         out_channels=num_classes,
+        num_layers=args.num_layers,
         dropout=args.dropout,
+        input_dropout=args.input_dropout,
+        pre_linear=bool(args.pre_linear),
+        residual=bool(args.residual),
+        layer_norm=bool(args.layer_norm),
+        batch_norm=bool(args.batch_norm),
         multilabel=multilabel,
     ).to(args.device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+    )
 
     saint_kwargs = dict(
         batch_size=args.batch_size,
@@ -531,8 +611,16 @@ def main():
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--hidden_channels", type=int, default=256)
+    parser.add_argument("--num_layers", type=int, default=3)
     parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--input_dropout", type=float, default=0.0)
     parser.add_argument("--lr", type=float, default=0.001)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--metric", choices=("acc", "rocauc"), default="acc")
+    parser.add_argument("--pre_linear", type=int, choices=(0, 1), default=0)
+    parser.add_argument("--residual", type=int, choices=(0, 1), default=0)
+    parser.add_argument("--layer_norm", type=int, choices=(0, 1), default=0)
+    parser.add_argument("--batch_norm", type=int, choices=(0, 1), default=0)
     parser.add_argument("--batch_size", type=int, default=0,
                         help="0 = graph-scale default (500 / 6000 / 20000).")
     parser.add_argument("--walk_length", type=int, default=0,
@@ -569,6 +657,7 @@ def main():
     else:
         args.device = torch.device(f"cuda:{args.device}")
 
+    fix_seed(args.seed)
     _dataset, data = load_sgs_dataset(args.dataset, args.data_root)
     data.edge_index, _ = remove_self_loops(data.edge_index)
     data.edge_index = coalesce(data.edge_index, num_nodes=data.num_nodes)
@@ -605,7 +694,9 @@ def main():
 
     run_scores = []
     for run_idx in range(1, args.runs + 1):
-        run_seed = args.seed + run_idx - 1
+        # tunedGNN seeds once before its run loop; repeated runs advance the
+        # same RNG stream instead of replacing the configured seed.
+        run_seed = args.seed
         score = train_one_run(
             args,
             args.dataset,

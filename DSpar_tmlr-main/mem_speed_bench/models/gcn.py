@@ -10,18 +10,25 @@ from torch_geometric.nn import GCNConv
 class GCN(torch.nn.Module):
     def __init__(self, in_channels: int, hidden_channels: int,
                  out_channels: int, num_layers: int, dropout: float = 0.0,
-                 drop_input: bool = False, batch_norm: bool = False, residual: bool = False):
+                 drop_input: bool = False, batch_norm: bool = False,
+                 residual: bool = False, layer_norm: bool = False,
+                 input_dropout: float = 0.0):
         super(GCN, self).__init__()
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.dropout = torch.nn.Dropout(p=dropout)
         self.drop_input = drop_input
-        if drop_input:
-            self.input_dropout = torch.nn.Dropout(p=dropout)
         self.activation = torch.nn.ReLU()
         self.batch_norm = batch_norm
+        self.layer_norm = layer_norm
         self.residual = residual
+        resolved_input_dropout = (
+            float(input_dropout)
+            if float(input_dropout) > 0
+            else (float(dropout) if drop_input else 0.0)
+        )
+        self.input_dropout = torch.nn.Dropout(p=resolved_input_dropout)
         self.num_layers = num_layers
         self.convs = ModuleList()
         for i in range(num_layers):
@@ -38,6 +45,10 @@ class GCN(torch.nn.Module):
             for i in range(num_layers - 1):
                 bn = BatchNorm1d(hidden_channels)
                 self.bns.append(bn)
+        if self.layer_norm:
+            self.lns = ModuleList()
+            for i in range(num_layers - 1):
+                self.lns.append(torch.nn.LayerNorm(hidden_channels))
 
 
     def reset_parameters(self):
@@ -46,15 +57,20 @@ class GCN(torch.nn.Module):
         if self.batch_norm:
             for bn in self.bns:
                 bn.reset_parameters()
+        if self.layer_norm:
+            for ln in self.lns:
+                ln.reset_parameters()
 
 
     def forward(self, x: Tensor, adj_t: SparseTensor, *args) -> Tensor:
-        if self.drop_input:
+        if self.input_dropout.p > 0:
             x = self.input_dropout(x)
         for idx, conv in enumerate(self.convs[:-1]):
             h = conv(x, adj_t)
             if self.batch_norm:
                 h = self.bns[idx](h)
+            elif self.layer_norm:
+                h = self.lns[idx](h)
             if self.residual and h.size(-1) == x.size(-1):
                 h += x[:h.size(0)]
             x = self.activation(h)
@@ -74,6 +90,8 @@ class GCN(torch.nn.Module):
         if layer < self.num_layers - 1:
             if self.batch_norm:
                 h = self.bns[layer](h)
+            elif self.layer_norm:
+                h = self.lns[layer](h)
             if self.residual and h.size(-1) == x.size(-1):
                 h += x[:h.size(0)]
             h = self.activation(h)
@@ -93,4 +111,4 @@ class GCN(torch.nn.Module):
                 pbar.update(batch_size)
             x_all = torch.cat(xs, dim=0)
         pbar.close()
-        return x_all    
+        return x_all

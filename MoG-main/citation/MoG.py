@@ -22,6 +22,11 @@ class MoG(nn.Module):
                        hidden_channels=args["hidden_channels"],
                        out_channels=num_classes,
                        num_layers=args["num_layers"],
-                       dropout=args["dropout"])
+                       dropout=args["dropout"],
+                       input_dropout=args["input_dropout"],
+                       pre_linear=bool(args["pre_linear"]),
+                       residual=bool(args["residual"]),
+                       layer_norm=bool(args["layer_norm"]),
+                       batch_norm=bool(args["batch_norm"]),
+                       jumping_knowledge=bool(args["jumping_knowledge"]))
     
-        

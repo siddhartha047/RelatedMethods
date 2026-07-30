@@ -94,38 +94,49 @@ class AddTrainableMask(ABC):
 
 
 def add_mask(model, init_mask_dict=None):
+    """Attach trainable/fixed weight masks to every GCN layer."""
 
-    if init_mask_dict is None:
-        
-        mask1_train = nn.Parameter(torch.ones_like(model.net_layer[0].weight))
-        mask1_fixed = nn.Parameter(torch.ones_like(model.net_layer[0].weight), requires_grad=False)
-        mask2_train = nn.Parameter(torch.ones_like(model.net_layer[1].weight))
-        mask2_fixed = nn.Parameter(torch.ones_like(model.net_layer[1].weight), requires_grad=False)
-        
-    else:
-        mask1_train = nn.Parameter(init_mask_dict['mask1_train'])
-        mask1_fixed = nn.Parameter(init_mask_dict['mask1_fixed'], requires_grad=False)
-        mask2_train = nn.Parameter(init_mask_dict['mask2_train'])
-        mask2_fixed = nn.Parameter(init_mask_dict['mask2_fixed'], requires_grad=False)
-
-    AddTrainableMask.apply(model.net_layer[0], 'weight', mask1_train, mask1_fixed)
-    AddTrainableMask.apply(model.net_layer[1], 'weight', mask2_train, mask2_fixed)
+    for index, layer in enumerate(model.net_layer):
+        if init_mask_dict is None:
+            mask_train = nn.Parameter(torch.ones_like(layer.weight))
+            mask_fixed = nn.Parameter(
+                torch.ones_like(layer.weight), requires_grad=False
+            )
+        else:
+            mask_train = nn.Parameter(
+                init_mask_dict[f"mask{index + 1}_train"]
+            )
+            mask_fixed = nn.Parameter(
+                init_mask_dict[f"mask{index + 1}_fixed"],
+                requires_grad=False,
+            )
+        AddTrainableMask.apply(
+            layer,
+            "weight",
+            mask_train,
+            mask_fixed,
+        )
  
         
 def generate_mask(model):
 
-    mask_dict = {}
-    mask_dict['mask1'] = torch.zeros_like(model.net_layer[0].weight)
-    mask_dict['mask2'] = torch.zeros_like(model.net_layer[1].weight)
-
-    return mask_dict
+    return {
+        f"mask{index + 1}": torch.zeros_like(layer.weight)
+        for index, layer in enumerate(model.net_layer)
+    }
 
 
 def subgradient_update_mask(model, args):
 
-    model.adj_mask1_train.grad.data.add_(args['s1'] * torch.sign(model.adj_mask1_train.data))
-    model.net_layer[0].weight_mask_train.grad.data.add_(args['s2'] * torch.sign(model.net_layer[0].weight_mask_train.data))
-    model.net_layer[1].weight_mask_train.grad.data.add_(args['s2'] * torch.sign(model.net_layer[1].weight_mask_train.data))
+    if model.adj_mask1_train.grad is not None:
+        model.adj_mask1_train.grad.data.add_(
+            args['s1'] * torch.sign(model.adj_mask1_train.data)
+        )
+    for layer in model.net_layer:
+        if layer.weight_mask_train.grad is not None:
+            layer.weight_mask_train.grad.data.add_(
+                args['s2'] * torch.sign(layer.weight_mask_train.data)
+            )
 
 
 def get_mask_distribution(model, if_numpy=True):
@@ -134,15 +145,12 @@ def get_mask_distribution(model, if_numpy=True):
     nonzero = torch.abs(adj_mask_tensor) > 0
     adj_mask_tensor = adj_mask_tensor[nonzero] # 13264 - 2708
 
-    weight_mask_tensor0 = model.net_layer[0].weight_mask_train.flatten()    # 22928
-    nonzero = torch.abs(weight_mask_tensor0) > 0
-    weight_mask_tensor0 = weight_mask_tensor0[nonzero]
-
-    weight_mask_tensor1 = model.net_layer[1].weight_mask_train.flatten()    # 22928
-    nonzero = torch.abs(weight_mask_tensor1) > 0
-    weight_mask_tensor1 = weight_mask_tensor1[nonzero]
-
-    weight_mask_tensor = torch.cat([weight_mask_tensor0, weight_mask_tensor1]) # 112
+    weight_masks = []
+    for layer in model.net_layer:
+        weight_mask = layer.weight_mask_train.flatten()
+        nonzero = torch.abs(weight_mask) > 0
+        weight_masks.append(weight_mask[nonzero])
+    weight_mask_tensor = torch.cat(weight_masks)
     # np.savez('mask', adj_mask=adj_mask_tensor.detach().cpu().numpy(), weight_mask=weight_mask_tensor.detach().cpu().numpy())
     if if_numpy:
         return adj_mask_tensor.detach().cpu().numpy(), weight_mask_tensor.detach().cpu().numpy()
@@ -179,6 +187,26 @@ def get_each_mask(mask_weight_tensor, threshold):
     mask = torch.where(mask_weight_tensor.abs() > threshold, ones, zeros)
     return mask
 
+
+def _exact_topk_mask(scores, support, keep_count):
+    """Return a binary mask with exactly ``keep_count`` supported entries."""
+
+    flat_scores = scores.detach().abs().flatten()
+    flat_support = support.detach().bool().flatten()
+    active_indices = torch.nonzero(flat_support, as_tuple=False).flatten()
+    keep_count = max(0, min(int(keep_count), active_indices.numel()))
+    flat_mask = torch.zeros_like(flat_scores)
+    if keep_count:
+        active_scores = flat_scores[active_indices]
+        chosen = torch.topk(
+            active_scores,
+            k=keep_count,
+            largest=True,
+            sorted=False,
+        ).indices
+        flat_mask[active_indices[chosen]] = 1
+    return flat_mask.reshape_as(scores)
+
 def get_each_mask_admm(mask_weight_tensor, threshold):
     
     zeros = torch.zeros_like(mask_weight_tensor) 
@@ -186,29 +214,76 @@ def get_each_mask_admm(mask_weight_tensor, threshold):
     return mask
 
 ##### pruning remain mask percent #######
-def get_final_mask_epoch(model, adj_percent, wei_percent):
-    
-    adj_mask, wei_mask = get_mask_distribution(model, if_numpy=False)
-    #adj_mask.add_((2 * torch.rand(adj_mask.shape) - 1) * 1e-5)
-    adj_total = adj_mask.shape[0]
-    wei_total = wei_mask.shape[0]
-    ### sort
-    adj_y, adj_i = torch.sort(adj_mask.abs())
-    wei_y, wei_i = torch.sort(wei_mask.abs())
-    ### get threshold
-    adj_thre_index = int(adj_total * adj_percent)
-    adj_thre = adj_y[adj_thre_index]
-    
-    wei_thre_index = int(wei_total * wei_percent)
-    wei_thre = wei_y[wei_thre_index]
+def get_final_mask_epoch(
+    model,
+    adj_percent,
+    wei_percent,
+    adj_keep_count=None,
+    weight_keep_count=None,
+):
+    """Select exact-cardinality learned adjacency and model-weight masks."""
 
-    mask_dict = {}
-    ori_adj_mask = model.adj_mask1_train.detach().cpu()
-    # ori_adj_mask.add_((2 * torch.rand(ori_adj_mask.shape) - 1) * 1e-5)
-    mask_dict['adj_mask'] = get_each_mask(ori_adj_mask, adj_thre)
-    mask_dict['weight1_mask'] = get_each_mask(model.net_layer[0].state_dict()['weight_mask_train'], wei_thre)
-    mask_dict['weight2_mask'] = get_each_mask(model.net_layer[1].state_dict()['weight_mask_train'], wei_thre)
+    adj_support = model.adj_mask2_fixed.detach()
+    active_adj = int(torch.count_nonzero(adj_support).item())
+    if adj_keep_count is None:
+        adj_keep_count = int(active_adj * (1.0 - adj_percent))
+    mask_dict = {
+        "adj_mask": _exact_topk_mask(
+            model.adj_mask1_train,
+            adj_support,
+            adj_keep_count,
+        ).cpu()
+    }
 
+    active_weight_count = sum(
+        int(torch.count_nonzero(layer.weight_mask_fixed).item())
+        for layer in model.net_layer
+    )
+    if weight_keep_count is None:
+        weight_keep_count = int(
+            active_weight_count * (1.0 - wei_percent)
+        )
+    weight_keep_count = max(
+        0, min(int(weight_keep_count), active_weight_count)
+    )
+
+    supported_scores = []
+    layer_active_indices = []
+    for layer in model.net_layer:
+        support = layer.weight_mask_fixed.detach().bool().flatten()
+        indices = torch.nonzero(support, as_tuple=False).flatten()
+        layer_active_indices.append(indices)
+        supported_scores.append(
+            layer.weight_mask_train.detach().abs().flatten()[indices]
+        )
+
+    combined_scores = torch.cat(supported_scores)
+    combined_keep = torch.zeros_like(combined_scores)
+    if weight_keep_count:
+        chosen = torch.topk(
+            combined_scores,
+            k=weight_keep_count,
+            largest=True,
+            sorted=False,
+        ).indices
+        combined_keep[chosen] = 1
+
+    offset = 0
+    weight_masks = []
+    for layer, active_indices in zip(model.net_layer, layer_active_indices):
+        layer_mask = torch.zeros_like(
+            layer.weight_mask_train.detach().flatten()
+        )
+        count = active_indices.numel()
+        layer_mask[active_indices] = combined_keep[offset : offset + count]
+        weight_masks.append(
+            layer_mask.reshape_as(layer.weight_mask_train).cpu()
+        )
+        offset += count
+
+    mask_dict["weight_masks"] = weight_masks
+    for index, weight_mask in enumerate(weight_masks):
+        mask_dict[f"weight{index + 1}_mask"] = weight_mask
     return mask_dict
 
 ######### ADMM get weight mask ##########
@@ -306,13 +381,12 @@ def print_sparsity(model):
     adj_mask_nonzero = model.adj_mask2_fixed.sum().item()
     adj_spar = adj_mask_nonzero * 100 / adj_nonzero
 
-    weight1_total = model.net_layer[0].weight_mask_fixed.numel()
-    weight2_total = model.net_layer[1].weight_mask_fixed.numel()
-    weight_total = weight1_total + weight2_total
-
-    weight1_nonzero = model.net_layer[0].weight_mask_fixed.sum().item()
-    weight2_nonzero = model.net_layer[1].weight_mask_fixed.sum().item()
-    weight_nonzero = weight1_nonzero + weight2_nonzero
+    weight_total = sum(
+        layer.weight_mask_fixed.numel() for layer in model.net_layer
+    )
+    weight_nonzero = sum(
+        layer.weight_mask_fixed.sum().item() for layer in model.net_layer
+    )
 
     wei_spar = weight_nonzero * 100 / weight_total
     print("-" * 100)
@@ -324,13 +398,12 @@ def print_sparsity(model):
 
 def print_weight_sparsity(model):
 
-    weight1_total = model.net_layer[0].weight_mask_fixed.numel()
-    weight2_total = model.net_layer[1].weight_mask_fixed.numel()
-    weight_total = weight1_total + weight2_total
-
-    weight1_nonzero = model.net_layer[0].weight_mask_fixed.sum().item()
-    weight2_nonzero = model.net_layer[1].weight_mask_fixed.sum().item()
-    weight_nonzero = weight1_nonzero + weight2_nonzero
+    weight_total = sum(
+        layer.weight_mask_fixed.numel() for layer in model.net_layer
+    )
+    weight_nonzero = sum(
+        layer.weight_mask_fixed.sum().item() for layer in model.net_layer
+    )
 
     wei_spar = weight_nonzero * 100 / weight_total
     print("-" * 100)
@@ -349,96 +422,64 @@ def load_only_mask(model, all_ckpt):
 
 
 def add_trainable_mask_noise(model, c):
-    
-    model.adj_mask1_train.requires_grad = False
-    model.net_layer[0].weight_mask_train.requires_grad = False
-    model.net_layer[1].weight_mask_train.requires_grad = False
-
-    rand1 = (2 * torch.rand(model.adj_mask1_train.shape) - 1) * c
-    rand1 = rand1.to(model.adj_mask1_train.device) 
-    rand1 = rand1 * model.adj_mask1_train
-    model.adj_mask1_train.add_(rand1)
-
-    rand2 = (2 * torch.rand(model.net_layer[0].weight_mask_train.shape) - 1) * c
-    rand2 = rand2.to(model.net_layer[0].weight_mask_train.device)
-    rand2 = rand2 * model.net_layer[0].weight_mask_train
-    model.net_layer[0].weight_mask_train.add_(rand2)
-
-    rand3 = (2 * torch.rand(model.net_layer[1].weight_mask_train.shape) - 1) * c
-    rand3 = rand3.to(model.net_layer[1].weight_mask_train.device)
-    rand3 = rand3 * model.net_layer[1].weight_mask_train
-    model.net_layer[1].weight_mask_train.add_(rand3)
-
-    model.adj_mask1_train.requires_grad = True
-    model.net_layer[0].weight_mask_train.requires_grad = True
-    model.net_layer[1].weight_mask_train.requires_grad = True
+    trainable_masks = [model.adj_mask1_train] + [
+        layer.weight_mask_train for layer in model.net_layer
+    ]
+    with torch.no_grad():
+        for mask in trainable_masks:
+            noise = (2 * torch.rand_like(mask) - 1) * c
+            mask.add_(noise * mask)
 
     
 def soft_mask_init(model, init_type, seed):
 
     setup_seed(seed)
+    mask_pairs = [
+        (model.adj_mask1_train, model.adj_mask2_fixed)
+    ] + [
+        (layer.weight_mask_train, layer.weight_mask_fixed)
+        for layer in model.net_layer
+    ]
+
+    def initialize(train_mask, fixed_mask, initializer):
+        with torch.no_grad():
+            initializer(train_mask)
+            train_mask.mul_(fixed_mask)
+
     if init_type == 'all_one':
         add_trainable_mask_noise(model, c=1e-5)
     elif init_type == 'kaiming':
-        
-        init.kaiming_uniform_(model.adj_mask1_train, a=math.sqrt(5))
-        # init.constant_(model.adj_mask1_train, 1.0)
-        model.adj_mask1_train.requires_grad = False
-        model.adj_mask1_train.mul_(model.adj_mask2_fixed)
-        model.adj_mask1_train.requires_grad = True
-        init.kaiming_uniform_(model.net_layer[0].weight_mask_train, a=math.sqrt(5))
-
-        model.net_layer[0].weight_mask_train.requires_grad = False
-        model.net_layer[0].weight_mask_train.mul_(model.net_layer[0].weight_mask_fixed)
-        model.net_layer[0].weight_mask_train.requires_grad = True
-
-        init.kaiming_uniform_(model.net_layer[1].weight_mask_train, a=math.sqrt(5))
-
-        model.net_layer[1].weight_mask_train.requires_grad = False
-        model.net_layer[1].weight_mask_train.mul_(model.net_layer[1].weight_mask_fixed)
-        model.net_layer[1].weight_mask_train.requires_grad = True
-
-
+        for train_mask, fixed_mask in mask_pairs:
+            initialize(
+                train_mask,
+                fixed_mask,
+                lambda tensor: init.kaiming_uniform_(
+                    tensor, a=math.sqrt(5)
+                ),
+            )
     elif init_type == 'normal':
         mean = 1.0
         std = 0.1
-        init.normal_(model.adj_mask1_train, mean=mean, std=std)
-        model.adj_mask1_train.requires_grad = False
-        model.adj_mask1_train.mul_(model.adj_mask2_fixed)
-        model.adj_mask1_train.requires_grad = True
-        init.normal_(model.net_layer[0].weight_mask_train, mean=mean, std=std)
-
-        model.net_layer[0].weight_mask_train.requires_grad = False
-        model.net_layer[0].weight_mask_train.mul_(model.net_layer[0].weight_mask_fixed)
-        model.net_layer[0].weight_mask_train.requires_grad = True
-
-        init.normal_(model.net_layer[1].weight_mask_train, mean=mean, std=std)
-
-        model.net_layer[1].weight_mask_train.requires_grad = False
-        model.net_layer[1].weight_mask_train.mul_(model.net_layer[1].weight_mask_fixed)
-        model.net_layer[1].weight_mask_train.requires_grad = True
-
+        for train_mask, fixed_mask in mask_pairs:
+            initialize(
+                train_mask,
+                fixed_mask,
+                lambda tensor: init.normal_(
+                    tensor, mean=mean, std=std
+                ),
+            )
     elif init_type == 'uniform':
         a = 0.8
         b = 1.2
-        init.uniform_(model.adj_mask1_train, a=a, b=b)
-        model.adj_mask1_train.requires_grad = False
-        model.adj_mask1_train.mul_(model.adj_mask2_fixed)
-        model.adj_mask1_train.requires_grad = True
-        init.uniform_(model.net_layer[0].weight_mask_train, a=a, b=b)
-
-        model.net_layer[0].weight_mask_train.requires_grad = False
-        model.net_layer[0].weight_mask_train.mul_(model.net_layer[0].weight_mask_fixed)
-        model.net_layer[0].weight_mask_train.requires_grad = True
-
-        init.uniform_(model.net_layer[1].weight_mask_train, a=a, b=b)
-
-        model.net_layer[1].weight_mask_train.requires_grad = False
-        model.net_layer[1].weight_mask_train.mul_(model.net_layer[1].weight_mask_fixed)
-        model.net_layer[1].weight_mask_train.requires_grad = True
-
+        for train_mask, fixed_mask in mask_pairs:
+            initialize(
+                train_mask,
+                fixed_mask,
+                lambda tensor: init.uniform_(tensor, a=a, b=b),
+            )
     else:
-        assert False
+        raise ValueError(
+            "init_type must be one of all_one, kaiming, normal, uniform"
+        )
 
     
-

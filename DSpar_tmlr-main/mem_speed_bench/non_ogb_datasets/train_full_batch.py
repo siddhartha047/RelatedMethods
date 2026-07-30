@@ -33,6 +33,7 @@ from dspar import get_memory_usage, compute_tensor_bytes, exp_recorder
 import models
 from data import get_benchmark_data, get_data
 from logger import Logger
+from EDSparseDataset import select_pyg_split
 from sklearn.metrics import f1_score
 import torch_geometric.transforms as T
 
@@ -63,20 +64,34 @@ parser.add_argument('--random_sparsify', help='whether to randomly sparsify the 
 parser.add_argument('--spec_sparsify', help='whether to spectrally sparsify the graph', action='store_true')
 parser.add_argument('--kept_ratio', type=float, default=None,
                     help='Optional common kept-edge sample budget for benchmark wrappers.')
+parser.add_argument('--hidden_channels', type=int, default=None)
+parser.add_argument('--num_layers', type=int, default=None)
+parser.add_argument('--lr', type=float, default=None)
+parser.add_argument('--weight_decay', type=float, default=None)
+parser.add_argument('--dropout', type=float, default=None)
+parser.add_argument('--input_dropout', type=float, default=None)
+parser.add_argument('--metric', choices=('acc', 'rocauc'), default=None)
+parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=None)
+parser.add_argument('--residual', type=int, choices=(0, 1), default=None)
+parser.add_argument('--layer_norm', type=int, choices=(0, 1), default=None)
+parser.add_argument('--batch_norm', type=int, choices=(0, 1), default=None)
 
 
 
 def get_optimizer(model_config, model):
+    weight_decay = float(model_config.get('weight_decay', 0.0))
     if model_config['optim'] == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=model_config['lr'])
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=model_config['lr'],
+            weight_decay=weight_decay,
+        )
     elif model_config['optim'] == 'rmsprop':
-        optimizer = torch.optim.RMSprop(model.parameters(), lr=model_config['lr'])
-    else:
-        raise NotImplementedError
-    if model_config['optim'] == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=model_config['lr'])
-    elif model_config['optim'] == 'rmsprop':
-        optimizer = torch.optim.RMSprop(model.parameters(), lr=model_config['lr'])
+        optimizer = torch.optim.RMSprop(
+            model.parameters(),
+            lr=model_config['lr'],
+            weight_decay=weight_decay,
+        )
     else:
         raise NotImplementedError
     return optimizer
@@ -223,6 +238,33 @@ def main():
         model_config['normalize'] = normalize
         if args.epochs is not None:
             model_config['epochs'] = args.epochs
+        architecture = model_config['architecture']
+        for argument, key in (
+            (args.hidden_channels, 'hidden_channels'),
+            (args.num_layers, 'num_layers'),
+            (args.dropout, 'dropout'),
+        ):
+            if argument is not None:
+                architecture[key] = argument
+        if args.lr is not None:
+            model_config['lr'] = args.lr
+        if args.weight_decay is not None:
+            model_config['weight_decay'] = args.weight_decay
+        if args.residual is not None:
+            architecture['residual'] = bool(args.residual)
+        if args.batch_norm is not None:
+            architecture['batch_norm'] = bool(args.batch_norm)
+        if args.layer_norm is not None:
+            architecture['layer_norm'] = bool(args.layer_norm)
+        if args.input_dropout is not None:
+            architecture['input_dropout'] = float(args.input_dropout)
+        # DSpar's native GCN does not expose tunedGNN's separate pre-linear
+        # and LayerNorm modules. Record those requested values explicitly
+        # rather than silently substituting a different operation.
+        model_config['pre_linear'] = bool(args.pre_linear or 0)
+        model_config['layer_norm'] = bool(args.layer_norm or 0)
+        model_config['input_dropout'] = args.input_dropout
+        model_config['metric'] = args.metric
 
     print(f'model config: {model_config}')
     print(f'clipping grad norm: {args.grad_norm}')
@@ -405,6 +447,7 @@ def main():
     logger = Logger(args.runs, args)
     metric_name = 'ROC-AUC' if multi_label else 'Accuracy'
     for run in range(args.runs):
+        select_pyg_split(data, run)
         model.reset_parameters()
         optimizer = get_optimizer(model_config, model)
         for epoch in range(1, 1 + model_config['epochs']):

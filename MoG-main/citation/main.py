@@ -13,7 +13,7 @@ import time
 SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).resolve().parents[3])).resolve()
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
-from EDSparseDataset import load_pyg_data
+from EDSparseDataset import load_pyg_data, select_pyg_split
 from ICML_SPARSIFICATION.scripts.baseline_result_utils import macro_f1_percent
 
 import numpy as np
@@ -152,13 +152,24 @@ def main():
     EpochTimes = []
 
     for run in range(args['runs']):
+        select_pyg_split(data, run)
+        split_idx = {
+            'train': data.train_mask,
+            'valid': data.val_mask,
+            'test': data.test_mask,
+        }
+        train_idx = split_idx['train'].to(device)
         # define the model
         model = MoG(data.num_features, num_classes, args, device)
         model = model.to(device)
         
         
         
-        optimizer = torch.optim.Adam(model.parameters(), lr=args['lr'])
+        optimizer = torch.optim.Adam(
+            model.parameters(),
+            lr=args['lr'],
+            weight_decay=args['weight_decay'],
+        )
         best_val_acc, best_test_acc, best_sparsity = 0, 0, 1
         if args['use_topo']:
             model.learner.topo_val = topo_val

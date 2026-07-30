@@ -6,13 +6,85 @@ import utils
 
 class net_gcn(nn.Module):
 
-    def __init__(self, embedding_dim, adj):
+    def __init__(
+        self,
+        embedding_dim,
+        adj,
+        dropout=0.5,
+        input_dropout=0.0,
+        pre_linear=False,
+        residual=False,
+        layer_norm=False,
+        batch_norm=False,
+        jumping_knowledge=False,
+        tuned_backbone=False,
+    ):
         super().__init__()
 
-        self.layer_num = len(embedding_dim) - 1
-        self.net_layer = nn.ModuleList([nn.Linear(embedding_dim[ln], embedding_dim[ln+1], bias=False) for ln in range(self.layer_num)])
+        self.tuned_backbone = bool(tuned_backbone)
+        self.layer_num = (
+            len(embedding_dim) - 2
+            if self.tuned_backbone
+            else len(embedding_dim) - 1
+        )
+        self.input_dropout = float(input_dropout)
+        self.pre_linear = bool(pre_linear)
+        self.residual = bool(residual)
+        self.layer_norm = bool(layer_norm)
+        self.batch_norm = bool(batch_norm)
+        self.jumping_knowledge = bool(jumping_knowledge)
+        if self.tuned_backbone and self.pre_linear:
+            message_dims = [embedding_dim[1]] * (self.layer_num + 1)
+        else:
+            message_dims = embedding_dim[: self.layer_num + 1]
+        self.net_layer = nn.ModuleList(
+            nn.Linear(
+                message_dims[ln],
+                message_dims[ln + 1],
+                bias=self.tuned_backbone,
+            )
+            for ln in range(self.layer_num)
+        )
+        self.residual_lins = nn.ModuleList(
+            nn.Linear(
+                message_dims[ln],
+                message_dims[ln + 1],
+                bias=True,
+            )
+            for ln in range(
+                self.layer_num
+                if self.tuned_backbone
+                else self.layer_num - 1
+            )
+        )
+        self.layer_norms = nn.ModuleList(
+            nn.LayerNorm(message_dims[ln + 1])
+            for ln in range(
+                self.layer_num
+                if self.tuned_backbone
+                else self.layer_num - 1
+            )
+        )
+        self.batch_norms = nn.ModuleList(
+            nn.BatchNorm1d(message_dims[ln + 1])
+            for ln in range(
+                self.layer_num
+                if self.tuned_backbone
+                else self.layer_num - 1
+            )
+        )
+        self.lin_in = (
+            nn.Linear(embedding_dim[0], embedding_dim[1])
+            if self.tuned_backbone and self.pre_linear
+            else None
+        )
+        self.pred_local = (
+            nn.Linear(embedding_dim[-2], embedding_dim[-1])
+            if self.tuned_backbone
+            else None
+        )
         self.relu = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=float(dropout))
         self.adj_nonzero = torch.nonzero(adj, as_tuple=False).shape[0]
         self.adj_mask1_train = nn.Parameter(self.generate_adj_mask(adj))
         self.adj_mask2_fixed = nn.Parameter(self.generate_adj_mask(adj), requires_grad=False)
@@ -24,15 +96,40 @@ class net_gcn(nn.Module):
         adj = torch.mul(adj, self.adj_mask2_fixed)
         adj = self.normalize(adj)
         #adj = torch.mul(adj, self.adj_mask2_fixed)
+        if self.input_dropout > 0 and not val_test:
+            x = nn.functional.dropout(
+                x, p=self.input_dropout, training=True
+            )
+        if self.tuned_backbone and self.pre_linear:
+            x = self.lin_in(x)
+            x = nn.functional.dropout(
+                x,
+                p=self.dropout.p,
+                training=self.training and not val_test,
+            )
+        x_final = 0
         for ln in range(self.layer_num):
+            previous = x
             x = torch.mm(adj, x)
             x = self.net_layer[ln](x)
-            if ln == self.layer_num - 1:
+            if not self.tuned_backbone and ln == self.layer_num - 1:
                 break
+            if self.residual:
+                x = x + self.residual_lins[ln](previous)
+            if self.layer_norm:
+                x = self.layer_norms[ln](x)
+            elif self.batch_norm:
+                x = self.batch_norms[ln](x)
             x = self.relu(x)
-            if val_test:
-                continue
-            x = self.dropout(x)
+            x = nn.functional.dropout(
+                x,
+                p=self.dropout.p,
+                training=self.training and not val_test,
+            )
+            if self.tuned_backbone:
+                x_final = x_final + x if self.jumping_knowledge else x
+        if self.tuned_backbone:
+            return self.pred_local(x_final)
         return x
 
     def generate_adj_mask(self, input_adj):
@@ -158,4 +255,3 @@ class net_gcn_multitask(nn.Module):
             x_ss = self.ss_classifier(x_ss)
 
         return x, x_ss
-
