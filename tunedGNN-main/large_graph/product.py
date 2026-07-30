@@ -19,7 +19,10 @@ from torch_geometric.utils import add_self_loops
 SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).resolve().parents[3])).resolve()
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
-from ICML_SPARSIFICATION.scripts.common.baseline_dataset_bridge import load_pyg_data
+TUNEDGNN_ROOT = Path(__file__).resolve().parents[1]
+if str(TUNEDGNN_ROOT) not in sys.path:
+    sys.path.insert(0, str(TUNEDGNN_ROOT))
+from EDSparseDataset import load_pyg_data
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
 
 

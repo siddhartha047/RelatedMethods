@@ -19,23 +19,17 @@ SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).re
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 
-TARGET_DATASET_ALIASES = {
-    'cora': 'cora',
-    'reddit': 'reddit',
-    'ogb-products': 'ogbn-products',
-    'ogbn-products': 'ogbn-products',
-    'products': 'ogbn-products',
-    'ogb-arxiv': 'ogbn-arxiv',
-    'ogbn-arxiv': 'ogbn-arxiv',
-    'arxiv': 'ogbn-arxiv',
-    'ogb-protein': 'ogbn-proteins',
-    'ogb-proteins': 'ogbn-proteins',
-    'ogbn-protein': 'ogbn-proteins',
-    'ogbn-proteins': 'ogbn-proteins',
-    'protein': 'ogbn-proteins',
-    'proteins': 'ogbn-proteins',
-    'pokec': 'pokec',
-}
+TUNEDGNN_ROOT = Path(__file__).resolve().parents[1]
+if str(TUNEDGNN_ROOT) not in sys.path:
+    sys.path.insert(0, str(TUNEDGNN_ROOT))
+
+from EDSparseDataset import (  # noqa: E402
+    CANONICAL_DATASETS,
+    canonicalize_dataset_name,
+    load_pyg_data as load_edsparse_pyg_data,
+)
+
+EDSPARSE_DATASETS = frozenset(CANONICAL_DATASETS)
 
 
 class NCDataset(object):
@@ -99,12 +93,10 @@ def load_dataset(data_dir, dataname, sub_dataname=''):
     """ Loader for NCDataset
         Returns NCDataset
     """
-    dataname = TARGET_DATASET_ALIASES.get(str(dataname).lower(), dataname)
+    dataname = canonicalize_dataset_name(dataname)
     print(dataname)
-    if dataname in TARGET_DATASET_ALIASES.values():
-        from ICML_SPARSIFICATION.scripts.baseline_dataset_bridge import load_pyg_data
-
-        data, _ = load_pyg_data(data_dir, dataname)
+    if dataname in EDSPARSE_DATASETS:
+        data, _ = load_edsparse_pyg_data(data_dir, dataname)
         dataset = NCDataset(dataname)
         dataset.graph = {
             'edge_index': data.edge_index,
@@ -116,6 +108,11 @@ def load_dataset(data_dir, dataname, sub_dataname=''):
         dataset.train_idx = torch.where(data.train_mask)[0]
         dataset.valid_idx = torch.where(data.val_mask)[0]
         dataset.test_idx = torch.where(data.test_mask)[0]
+        dataset.load_fixed_splits = lambda: {
+            'train': dataset.train_idx,
+            'valid': dataset.valid_idx,
+            'test': dataset.test_idx,
+        }
         return dataset
     if dataname in  ('amazon-photo', 'amazon-computer'):
         dataset = load_amazon_dataset(data_dir, dataname)

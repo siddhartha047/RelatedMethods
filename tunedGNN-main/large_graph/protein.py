@@ -21,6 +21,10 @@ from models import GNN
 SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).resolve().parents[3])).resolve()
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
+TUNEDGNN_ROOT = Path(__file__).resolve().parents[1]
+if str(TUNEDGNN_ROOT) not in sys.path:
+    sys.path.insert(0, str(TUNEDGNN_ROOT))
+from EDSparseDataset import DEFAULT_SPLIT_PROTOCOL, split_fingerprint
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
 
 device = None
@@ -46,6 +50,24 @@ def load_data(dataset, data_dir=None):
 
     splitted_idx = data.get_idx_split()
     train_idx, val_idx, test_idx = splitted_idx["train"], splitted_idx["valid"], splitted_idx["test"]
+    # EDSparse also uses OGB's official fixed split for ogbn-proteins.  Keep
+    # DGL's graph representation, but fingerprint the shared split so batch
+    # logs can verify that both methods evaluate the same node membership.
+    fingerprint = split_fingerprint(
+        {"train": train_idx, "valid": val_idx, "test": test_idx}
+    )
+    print(
+        "[EDSparseDataset] "
+        f"dataset={dataset} "
+        f"split_protocol={os.environ.get('EDSPARSE_SPLIT_PROTOCOL', DEFAULT_SPLIT_PROTOCOL)} "
+        "split_index=0 "
+        f"split_fingerprint={fingerprint} "
+        f"train={int(train_idx.numel())} "
+        f"valid={int(val_idx.numel())} "
+        f"test={int(test_idx.numel())} "
+        f"data_root={Path(data_dir or DEFAULT_DATA_DIR).expanduser().resolve()}",
+        flush=True,
+    )
     graph, labels = data[0]
     graph.ndata["labels"] = labels
 
