@@ -222,10 +222,10 @@ best_val = 0.0
 final_train = 0.0
 final_test = 0.0
 final_test_f1 = 0.0
-for epoch in range(1, args.epochs):
+for epoch in range(1, args.epochs + 1):
     start = time.time()
     loss = train(epoch)
-    should_eval = epoch == args.epochs - 1 or epoch % args.eval_step == 0
+    should_eval = epoch == args.epochs or epoch % args.eval_step == 0
     if should_eval:
         train_acc, val_acc, test_acc, test_f1 = test(epoch)
         if val_acc > best_val:
@@ -233,7 +233,7 @@ for epoch in range(1, args.epochs):
             final_train = train_acc
             final_test = test_acc
             final_test_f1 = test_f1
-        if epoch % args.display_step == 0 or epoch == args.epochs - 1:
+        if epoch % args.display_step == 0 or epoch == args.epochs:
             print(f'Epoch: {epoch:02d}, '
                       f'Loss: {loss:.4f}, '
                       f'Train: {100 * train_acc:.2f}%, '
@@ -254,7 +254,7 @@ print(f"Final Test F1 (Macro): {final_test_f1:.2f}")
 append_baseline_result(
     method=os.environ.get('BASELINE_METHOD', 'tunedgnn'),
     dataset=args.dataset,
-    run=1,
+    run=int(os.environ.get('BASELINE_RUN_ID', '1')),
     seed=args.seed,
     epochs=args.epochs,
     train_acc=100.0 * final_train,

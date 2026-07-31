@@ -150,6 +150,89 @@ def _exact_weighted_edge_sample(probabilities, budget, seed):
     return indices, counts
 
 
+def _exact_weighted_undirected_edge_sample(
+    edge_index,
+    probabilities,
+    budget,
+    seed,
+    num_nodes,
+):
+    """Sample an exact directed-edge budget while preserving edge pairs.
+
+    Medium tunedGNN datasets are represented with both directions of every
+    non-loop edge.  Sampling those directions independently creates a directed
+    graph and changes the GCN operator.  We instead sample canonical
+    undirected pairs, expand both directions, and use at most one singleton
+    direction when an odd requested budget cannot be perfectly symmetric.
+    """
+
+    if budget == 0:
+        empty_edges = edge_index[:, :0]
+        empty_values = probabilities.new_empty(0, dtype=torch.float)
+        return empty_edges, empty_values
+
+    src, dst = edge_index
+    if bool((src == dst).any()):
+        raise ValueError(
+            "undirected DSpar sampling expects self-loops to be added by the GNN"
+        )
+    low = torch.minimum(src, dst)
+    high = torch.maximum(src, dst)
+    pair_keys = low * int(num_nodes) + high
+    unique_keys, inverse = torch.unique(
+        pair_keys,
+        sorted=True,
+        return_inverse=True,
+    )
+    pair_probabilities = torch.zeros(
+        unique_keys.numel(),
+        dtype=probabilities.dtype,
+        device=probabilities.device,
+    )
+    pair_probabilities.scatter_add_(0, inverse, probabilities)
+    pair_probabilities /= pair_probabilities.sum()
+
+    full_pair_count, singleton_count = divmod(int(budget), 2)
+    sampled_pair_count = full_pair_count + singleton_count
+    sampled_pairs, _counts = _exact_weighted_edge_sample(
+        pair_probabilities,
+        sampled_pair_count,
+        seed,
+    )
+    sampled_keys = unique_keys[sampled_pairs]
+    sampled_low = torch.div(
+        sampled_keys,
+        int(num_nodes),
+        rounding_mode='floor',
+    )
+    sampled_high = sampled_keys.remainder(int(num_nodes))
+    # This is the same inverse-probability weight as directed sampling when
+    # each undirected pair contains two equiprobable directions.
+    if sampled_pair_count >= pair_probabilities.numel():
+        sampled_weights = torch.ones_like(
+            pair_probabilities[sampled_pairs],
+            dtype=torch.float,
+        )
+    else:
+        approximate_inclusion = (
+            sampled_pair_count * pair_probabilities[sampled_pairs]
+        ).clamp(max=1.0)
+        sampled_weights = approximate_inclusion.reciprocal().float()
+
+    paired_low = sampled_low[:full_pair_count]
+    paired_high = sampled_high[:full_pair_count]
+    paired_weights = sampled_weights[:full_pair_count]
+    new_src = torch.cat((paired_low, paired_high))
+    new_dst = torch.cat((paired_high, paired_low))
+    edge_attr = torch.cat((paired_weights, paired_weights))
+    if singleton_count:
+        new_src = torch.cat((new_src, sampled_low[-1:]))
+        new_dst = torch.cat((new_dst, sampled_high[-1:]))
+        edge_attr = torch.cat((edge_attr, sampled_weights[-1:]))
+
+    return torch.stack((new_src, new_dst), dim=0), edge_attr
+
+
 def maybe_sparsfication(data, dataset, follow_by_subgraph_sampling, random=False, is_undirected=True, reweighted=True, target_ratio=None):
     N, E = data.num_nodes, data.num_edges
     if target_ratio is not None and not 0.0 < float(target_ratio) <= 1.0:
@@ -198,16 +281,33 @@ def maybe_sparsfication(data, dataset, follow_by_subgraph_sampling, random=False
         p_cumsum = torch.cumsum(pe, 0)
         sampled = sampler.edge_sample(p_cumsum, Q, seed_val)
         e_indices, e_cnt = torch.unique(sampled, return_counts=True)
+    elif is_undirected:
+        edge_index, edge_attr = _exact_weighted_undirected_edge_sample(
+            data.edge_index,
+            pe,
+            Q,
+            seed_val,
+            data.num_nodes,
+        )
+        e_indices = e_cnt = None
     else:
         # The benchmark API defines target_ratio as a retained-edge budget.
         # Sampling with replacement can undershoot it after duplicate removal,
         # so explicit targets use weighted sampling without replacement.
         e_indices, e_cnt = _exact_weighted_edge_sample(pe, Q, seed_val)
     print(f'sample edge used {time.time() - s} sec')
-    new_graph = e_cnt / Q / pe[e_indices]
-    new_src, new_dst = src[e_indices], dst[e_indices]
-    edge_index = torch.cat([new_src.view(1, -1), new_dst.view(1, -1)], dim=0)
-    edge_attr = new_graph.float()
+    if e_indices is not None:
+        if Q >= E:
+            new_graph = torch.ones_like(pe[e_indices])
+        else:
+            # Explicit budgets sample without replacement.  The old
+            # with-replacement count/(Q*p) formula can assign weights below
+            # one and does not reduce to the original graph at ratio=1.
+            approximate_inclusion = (Q * pe[e_indices]).clamp(max=1.0)
+            new_graph = approximate_inclusion.reciprocal()
+        new_src, new_dst = src[e_indices], dst[e_indices]
+        edge_index = torch.cat([new_src.view(1, -1), new_dst.view(1, -1)], dim=0)
+        edge_attr = new_graph.float()
     if is_undirected and target_ratio is None:
         data.edge_index, data.edge_attr = to_undirected(edge_index, edge_attr)
     else:

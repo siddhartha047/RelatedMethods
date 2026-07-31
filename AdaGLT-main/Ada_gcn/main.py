@@ -14,7 +14,7 @@ import net as net
 import layers
 from args import parser_loader
 import utils
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, roc_auc_score
 import pdb
 import pruning
 import copy
@@ -22,6 +22,25 @@ from scipy.sparse import coo_matrix
 import warnings
 from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result
 warnings.filterwarnings('ignore')
+
+
+def _selection_metric(labels, logits, indices, metric):
+    truth = labels[indices].detach().cpu().numpy()
+    selected_logits = logits[indices].detach()
+    if metric == "rocauc":
+        probabilities = torch.softmax(selected_logits, dim=-1).cpu().numpy()
+        if probabilities.shape[1] == 2:
+            return float(roc_auc_score(truth, probabilities[:, 1]))
+        return float(
+            roc_auc_score(
+                truth,
+                probabilities,
+                multi_class="ovr",
+            )
+        )
+    prediction = selected_logits.argmax(dim=1).cpu().numpy()
+    return float(f1_score(truth, prediction, average="micro"))
+
 
 def run_get_mask(args):
     device = args['device']
@@ -35,15 +54,40 @@ def run_get_mask(args):
     labels = labels.to(device)
     loss_func = nn.CrossEntropyLoss()
 
-    net_gcn = net.net_gcn_dense(embedding_dim=args['embedding_dim'], edge_index=adj, device=device, 
-                                spar_wei=args['spar_wei'], spar_adj=args['spar_adj'], num_nodes=features.shape[0],
-                                use_bn=args['use_bn'], use_res=args['use_res'],
-                                use_ln=args['use_ln'], dropout=args['dropout'],
-                                coef=args['coef'])
+    net_gcn = net.net_gcn_dense(
+        embedding_dim=args['embedding_dim'],
+        out_channels=args['out_channels'],
+        edge_index=adj,
+        device=device,
+        spar_wei=False,
+        spar_adj=args['spar_adj'],
+        num_nodes=features.shape[0],
+        use_bn=args['use_bn'],
+        use_res=args['use_res'],
+        use_ln=args['use_ln'],
+        dropout=args['dropout'],
+        input_dropout=args['input_dropout'],
+        pre_linear=bool(args['pre_linear']),
+        jumping_knowledge=bool(args['jumping_knowledge']),
+        coef=args['coef'],
+    )
     net_gcn = net_gcn.to(device)
 
-    optimizer = torch.optim.Adam(net_gcn.parameters(
-    ), lr=args['lr'], weight_decay=args['weight_decay'])
+    optimizer = torch.optim.Adam(
+        [
+            {
+                "params": list(net_gcn.backbone_parameters()),
+                "weight_decay": args['weight_decay'],
+            },
+            {
+                "params": list(net_gcn.sparsifier_parameters()),
+                # tunedGNN weight decay belongs to the GCN, not the auxiliary
+                # edge scores/thresholds used to discover the sparse graph.
+                "weight_decay": 0.0,
+            },
+        ],
+        lr=args['lr'],
+    )
 
     acc_test = 0.0
     best_val_acc = {'val_acc': 0, 'epoch': 0, 'test_acc': 0, "adj_spar": 0, "wei_spar": 0}
@@ -82,12 +126,15 @@ def run_get_mask(args):
         with torch.no_grad():
             net_gcn.eval()
             output = net_gcn(features, adj, val_test=True, pretrain=(epoch < args['pretrain_epoch']))
-            acc_val = f1_score(labels[idx_val].cpu().numpy(
-            ), output[idx_val].cpu().numpy().argmax(axis=1), average='micro')
-            acc_test = f1_score(labels[idx_test].cpu().numpy(
-            ), output[idx_test].cpu().numpy().argmax(axis=1), average='micro')
-            acc_train = f1_score(labels[idx_train].cpu().numpy(
-            ), output[idx_train].cpu().numpy().argmax(axis=1), average='micro')
+            acc_val = _selection_metric(
+                labels, output, idx_val, args['metric']
+            )
+            acc_test = _selection_metric(
+                labels, output, idx_test, args['metric']
+            )
+            acc_train = _selection_metric(
+                labels, output, idx_train, args['metric']
+            )
 
             aspar_here = utils.calcu_sparsity(net_gcn.edge_mask_archive, adj.shape[1])
             wspar_here = utils.net_weight_sparsity(net_gcn)
@@ -171,11 +218,23 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
     labels = labels.to(device)
     loss_func = nn.CrossEntropyLoss()
     
-    net_gcn = net.net_gcn_dense(embedding_dim=args['embedding_dim'], edge_index=adj, device=device,
-                                spar_wei=args['spar_wei'], spar_adj=False, num_nodes=features.shape[0],
-                                use_bn=args['use_bn'], use_res=args['use_res'],
-                                use_ln=args['use_ln'], dropout=args['dropout'],
-                                mode="retain")
+    net_gcn = net.net_gcn_dense(
+        embedding_dim=args['embedding_dim'],
+        out_channels=args['out_channels'],
+        edge_index=adj,
+        device=device,
+        spar_wei=False,
+        spar_adj=False,
+        num_nodes=features.shape[0],
+        use_bn=args['use_bn'],
+        use_res=args['use_res'],
+        use_ln=args['use_ln'],
+        dropout=args['dropout'],
+        input_dropout=args['input_dropout'],
+        pre_linear=bool(args['pre_linear']),
+        jumping_knowledge=bool(args['jumping_knowledge']),
+        mode="retain",
+    )
     net_gcn = net_gcn.to(device)
 
     utils.rewind_compatible_weights(net_gcn, rewind_weight)
@@ -199,12 +258,15 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
             net_gcn.eval()
             output = net_gcn(features, adj, val_test=True,
                              edge_masks=edge_masks,wei_masks=wei_masks)
-            acc_val = f1_score(labels[idx_val].cpu().numpy(
-            ), output[idx_val].cpu().numpy().argmax(axis=1), average='micro')
-            acc_test = f1_score(labels[idx_test].cpu().numpy(
-            ), output[idx_test].cpu().numpy().argmax(axis=1), average='micro')
-            acc_train = f1_score(labels[idx_train].cpu().numpy(
-            ), output[idx_train].cpu().numpy().argmax(axis=1), average='micro')
+            acc_val = _selection_metric(
+                labels, output, idx_val, args['metric']
+            )
+            acc_test = _selection_metric(
+                labels, output, idx_test, args['metric']
+            )
+            acc_train = _selection_metric(
+                labels, output, idx_train, args['metric']
+            )
             train_f1 = f1_score(labels[idx_train].cpu().numpy(),
                                 output[idx_train].cpu().numpy().argmax(axis=1),
                                 average='macro', zero_division=0)
@@ -231,6 +293,7 @@ if __name__ == "__main__":
 
     args = parser_loader()
     print(args)
+    print("[PruningMode] edge_only=true weight_masks=disabled")
     # torch.autograd.set_detect_anomaly#(True)
     utils.fix_seed(args['seed'])
     

@@ -139,6 +139,7 @@ def get_benchmark_data(
     enable_sparsify: bool = False,
     random_sparsify: bool = True,
     target_ratio=None,
+    preserve_undirected: bool = False,
 ) -> Tuple[Data, int, int]:
     data, _dataset = load_pyg_data(root, name)
     if data.y.dim() > 1 and data.y.size(-1) > 1:
@@ -147,12 +148,18 @@ def get_benchmark_data(
         valid_y = data.y[data.y >= 0]
         num_classes = int(valid_y.max().item() + 1)
 
+    if preserve_undirected:
+        data.edge_index = to_undirected(
+            remove_self_loops(data.edge_index)[0],
+            num_nodes=int(data.num_nodes),
+        )
     if enable_sparsify:
         data = maybe_sparsfication(
             data,
             name,
             follow_by_subgraph_sampling,
             random_sparsify,
+            is_undirected=preserve_undirected,
             target_ratio=target_ratio,
         )
     return data, int(data.x.size(1)), num_classes

@@ -26,6 +26,7 @@ if str(TUNEDGNN_ROOT) not in sys.path:
     sys.path.insert(0, str(TUNEDGNN_ROOT))
 from EDSparseDataset import DEFAULT_SPLIT_PROTOCOL, split_fingerprint
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result
 
 device = None
 dataset = "ogbn-proteins"
@@ -339,8 +340,23 @@ def main():
         val_score, test_score = run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, i + 1)
         val_scores.append(val_score)
         test_scores.append(test_score)
+        append_baseline_result(
+            method=os.environ.get("BASELINE_METHOD", "tunedgnn"),
+            dataset=dataset,
+            run=i + 1,
+            seed=args.seed + i,
+            epochs=args.n_epochs,
+            valid_acc=100.0 * val_score,
+            test_acc=100.0 * test_score,
+        )
 
     print(args)
+    scores = torch.tensor(test_scores)
+    std = scores.std(unbiased=False).item() if scores.numel() > 1 else 0.0
+    print(
+        f"Final Test: {100.0 * scores.mean().item():.2f} "
+        f"± {100.0 * std:.2f}"
+    )
 
 
 if __name__ == "__main__":

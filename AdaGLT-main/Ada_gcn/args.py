@@ -26,6 +26,12 @@ def parser_loader():
     parser.add_argument('--runs', type=int, default=1)
     parser.add_argument('--metric', choices=('acc', 'rocauc'), default='acc')
     parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=0)
+    parser.add_argument(
+        '--jumping_knowledge',
+        type=int,
+        choices=(0, 1),
+        default=0,
+    )
     parser.add_argument("--device", type=str, default="cuda:6")
 
     parser.add_argument("--spar_wei", default=False, action='store_true')
@@ -49,6 +55,11 @@ def parser_loader():
     parser.add_argument('--seed', type=int, default=None)
 
     args = vars(parser.parse_args())
+    if args['spar_wei']:
+        parser.error(
+            "The shared AdaGLT benchmark is edge-only; model-weight "
+            "sparsification is disabled."
+        )
     os.environ["BASELINE_DATA_ROOT"] = args["data_root"]
     seed_dict = {'cora': 1899, 'citeseer': 17889, 'pubmed': 3333}
     # seed_dict = {'cora': 23977/23388, 'citeseer': 27943/27883, 'pubmed': 3333}
@@ -64,10 +75,10 @@ def parser_loader():
         args['use_res'] = bool(args['use_res_value'])
 
     base_dim = utils.infer_embedding_dim(args['data_root'], args['dataset'])
+    args['out_channels'] = base_dim[-1]
     args['embedding_dim'] = (
         [base_dim[0]]
-        + [args['hidden_channels']] * (args['num_layers'] - 1)
-        + [base_dim[-1]]
+        + [args['hidden_channels']] * args['num_layers']
     )
 
     args["model_save_path"] = os.path.join(

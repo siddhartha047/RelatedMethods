@@ -3,6 +3,7 @@ import torch.nn as nn
 import pdb
 import copy
 import utils
+from torch_geometric.nn import GCNConv
 
 class net_gcn(nn.Module):
 
@@ -38,9 +39,11 @@ class net_gcn(nn.Module):
         else:
             message_dims = embedding_dim[: self.layer_num + 1]
         self.net_layer = nn.ModuleList(
-            nn.Linear(
+            GCNConv(
                 message_dims[ln],
                 message_dims[ln + 1],
+                cached=False,
+                normalize=True,
                 bias=self.tuned_backbone,
             )
             for ln in range(self.layer_num)
@@ -88,14 +91,13 @@ class net_gcn(nn.Module):
         self.adj_nonzero = torch.nonzero(adj, as_tuple=False).shape[0]
         self.adj_mask1_train = nn.Parameter(self.generate_adj_mask(adj))
         self.adj_mask2_fixed = nn.Parameter(self.generate_adj_mask(adj), requires_grad=False)
-        self.normalize = utils.torch_normalize_adj
     
     def forward(self, x, adj, val_test=False):
         
-        adj = torch.mul(adj, self.adj_mask1_train)
-        adj = torch.mul(adj, self.adj_mask2_fixed)
-        adj = self.normalize(adj)
-        #adj = torch.mul(adj, self.adj_mask2_fixed)
+        masked_adj = torch.mul(adj, self.adj_mask1_train)
+        masked_adj = torch.mul(masked_adj, self.adj_mask2_fixed)
+        edge_index = torch.nonzero(adj, as_tuple=False).t().contiguous()
+        edge_weight = masked_adj[edge_index[0], edge_index[1]]
         if self.input_dropout > 0 and not val_test:
             x = nn.functional.dropout(
                 x, p=self.input_dropout, training=True
@@ -110,8 +112,11 @@ class net_gcn(nn.Module):
         x_final = 0
         for ln in range(self.layer_num):
             previous = x
-            x = torch.mm(adj, x)
-            x = self.net_layer[ln](x)
+            x = self.net_layer[ln](
+                x,
+                edge_index,
+                edge_weight=edge_weight,
+            )
             if not self.tuned_backbone and ln == self.layer_num - 1:
                 break
             if self.residual:

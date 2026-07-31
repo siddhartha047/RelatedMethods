@@ -139,6 +139,15 @@ def subgradient_update_mask(model, args):
             )
 
 
+def subgradient_update_edge_mask(model, args):
+    """Apply Unified-LTH's L1 subgradient only to the graph mask."""
+
+    if model.adj_mask1_train.grad is not None:
+        model.adj_mask1_train.grad.data.add_(
+            args['s1'] * torch.sign(model.adj_mask1_train.data)
+        )
+
+
 def get_mask_distribution(model, if_numpy=True):
 
     adj_mask_tensor = model.adj_mask1_train.flatten()
@@ -206,6 +215,55 @@ def _exact_topk_mask(scores, support, keep_count):
         ).indices
         flat_mask[active_indices[chosen]] = 1
     return flat_mask.reshape_as(scores)
+
+
+def _exact_undirected_topk_mask(scores, support, keep_count):
+    """Select exact symmetric edge pairs when the support is undirected."""
+
+    support_bool = support.detach().bool()
+    if (
+        support_bool.ndim != 2
+        or support_bool.shape[0] != support_bool.shape[1]
+        or not torch.equal(support_bool, support_bool.t())
+        or int(keep_count) % 2
+    ):
+        return _exact_topk_mask(scores, support, keep_count)
+
+    row, col = torch.nonzero(support_bool, as_tuple=True)
+    upper_triangle = row < col
+    row = row[upper_triangle]
+    col = col[upper_triangle]
+    pair_keep_count = min(int(keep_count) // 2, row.numel())
+    result = torch.zeros_like(scores)
+    if pair_keep_count:
+        pair_scores = (
+            scores.detach().abs()[row, col]
+            + scores.detach().abs()[col, row]
+        ) / 2.0
+        # ``triu_indices`` is in node-id order, so stable sorting also gives
+        # deterministic tie breaking without perturbing learned scores.
+        chosen = torch.argsort(
+            pair_scores,
+            descending=True,
+            stable=True,
+        )[:pair_keep_count]
+        selected_row = row[chosen]
+        selected_col = col[chosen]
+        result[selected_row, selected_col] = 1
+        result[selected_col, selected_row] = 1
+    return result
+
+
+def get_final_edge_mask_epoch(model, adj_keep_count):
+    """Return the learned exact-cardinality graph ticket only."""
+
+    return {
+        "adj_mask": _exact_undirected_topk_mask(
+            model.adj_mask1_train,
+            model.adj_mask2_fixed.detach(),
+            adj_keep_count,
+        ).cpu()
+    }
 
 def get_each_mask_admm(mask_weight_tensor, threshold):
     
@@ -396,6 +454,21 @@ def print_sparsity(model):
 
     return adj_spar, wei_spar
 
+
+def print_edge_sparsity(model):
+    """Report graph retention while explicitly keeping every model weight."""
+
+    adjacency_kept = model.adj_mask2_fixed.sum().item()
+    adjacency_percent = adjacency_kept * 100 / model.adj_nonzero
+    print("-" * 100)
+    print(
+        "Sparsity: Adj:[{:.2f}%] Wei:[100.00%]".format(
+            adjacency_percent
+        )
+    )
+    print("-" * 100)
+    return adjacency_percent
+
 def print_weight_sparsity(model):
 
     weight_total = sum(
@@ -482,4 +555,28 @@ def soft_mask_init(model, init_type, seed):
             "init_type must be one of all_one, kaiming, normal, uniform"
         )
 
-    
+
+def soft_edge_mask_init(model, init_type, seed):
+    """Initialize only the trainable adjacency mask.
+
+    The fixed mask carries the surviving graph support between IMP rounds.
+    Model parameters are normal dense tensors and are deliberately untouched.
+    """
+
+    del seed
+    train_mask = model.adj_mask1_train
+    fixed_mask = model.adj_mask2_fixed
+    with torch.no_grad():
+        if init_type == "all_one":
+            train_mask.copy_(fixed_mask)
+        elif init_type == "kaiming":
+            init.kaiming_uniform_(train_mask, a=math.sqrt(5))
+            train_mask.mul_(fixed_mask)
+        elif init_type == "normal":
+            init.normal_(train_mask, mean=1.0, std=0.1)
+            train_mask.mul_(fixed_mask)
+        elif init_type == "uniform":
+            init.uniform_(train_mask, a=0.8, b=1.2)
+            train_mask.mul_(fixed_mask)
+        else:
+            raise ValueError(f"Unknown edge-mask initialization: {init_type}")

@@ -52,8 +52,12 @@ def train(model:MoG,features,indices,labels,values,shape,train_idx,temp,optimize
     mask,add_loss = model.learner(x = features, edge_index = indices, 
                                   temp = temp,shape = shape,
                                   edge_attr = values, training = True)  # masks:size(num_edges)
-    output = model.gnn(features, indices ,mask) + add_loss
-    loss = F.nll_loss(output[train_idx], labels[train_idx])
+    output = model.gnn(features, indices, mask)
+    supervised_loss = F.nll_loss(output[train_idx], labels[train_idx])
+    # The MoE load-balancing term is a loss, not a logit offset.  Adding it to
+    # every log-probability before NLL reverses its gradient because NLL
+    # negates the selected value.
+    loss = supervised_loss + add_loss
     loss.backward()   
     optimizer.step()
     return loss.item(),mask
@@ -133,11 +137,10 @@ def main():
     #row,col,_= data.adj_t.coo()
     #indices = torch.stack([row,col],dim=0)
 
-    data.edge_index = remove_self_loops(data.edge_index)[0]
-
-    data.edge_index = add_self_loops(data.edge_index)[0]
-
-    indices = to_undirected(data.edge_index)
+    # Learn a mask only over real graph edges.  As in tunedGNN, GCNConv adds an
+    # unpruned self-loop for every node during normalization; self-loops are
+    # therefore outside MoG's requested edge budget.
+    indices = to_undirected(remove_self_loops(data.edge_index)[0])
 
     print(indices.shape)
 
@@ -166,9 +169,27 @@ def main():
         
         
         optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=args['lr'],
-            weight_decay=args['weight_decay'],
+            [
+                {
+                    'params': model.gnn.parameters(),
+                    'lr': args['lr'],
+                    'weight_decay': args['weight_decay'],
+                },
+                {
+                    # tunedGNN has no sparsification learner.  Keep its exact
+                    # optimizer contract on the GNN while avoiding accidental
+                    # regularization of MoG's gating and edge-score tensors.
+                    'params': model.learner.parameters(),
+                    'lr': args['lr'],
+                    'weight_decay': 0.0,
+                },
+            ]
+        )
+        print(
+            '[OptimizerContract] '
+            f'backbone_lr={args["lr"]} '
+            f'backbone_weight_decay={args["weight_decay"]} '
+            f'learner_lr={args["lr"]} learner_weight_decay=0.0'
         )
         best_val_acc, best_test_acc, best_sparsity = 0, 0, 1
         if args['use_topo']:

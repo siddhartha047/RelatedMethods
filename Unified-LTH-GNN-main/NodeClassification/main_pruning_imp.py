@@ -64,7 +64,6 @@ def _build_model(
         jumping_knowledge=bool(args["jumping_knowledge"]),
         tuned_backbone=True,
     )
-    pruning.add_mask(model)
     return model.to(device)
 
 
@@ -125,10 +124,6 @@ def _apply_ticket_masks(
     adjacency_mask = mask_dict["adj_mask"]
     ticket_state["adj_mask1_train"] = adjacency_mask.clone()
     ticket_state["adj_mask2_fixed"] = adjacency_mask.clone()
-    for index, weight_mask in enumerate(mask_dict["weight_masks"]):
-        prefix = f"net_layer.{index}.weight_mask"
-        ticket_state[f"{prefix}_train"] = weight_mask.clone()
-        ticket_state[f"{prefix}_fixed"] = weight_mask.clone()
     return ticket_state
 
 
@@ -138,27 +133,37 @@ def _discover_ticket(
     device: torch.device,
     starting_state: dict[str, torch.Tensor] | None,
     adjacency_keep_count: int,
-    weight_keep_count: int,
 ):
     adjacency, features, labels, idx_train, idx_val, _idx_test = tensors
     model = _build_model(args, adjacency, device)
     if starting_state is not None:
         model.load_state_dict(starting_state)
-    pruning.soft_mask_init(model, args["init_soft_mask_type"], args["seed"])
-    if args["weight_kept_ratio"] == 1.0:
-        # Graph-only comparison: ordinary model weights still train, but the
-        # auxiliary Unified-LTH weight masks remain identically one and do not
-        # participate in mask discovery.
-        for layer in model.net_layer:
-            with torch.no_grad():
-                layer.weight_mask_train.copy_(layer.weight_mask_fixed)
-            layer.weight_mask_train.requires_grad = False
+    pruning.soft_edge_mask_init(
+        model,
+        args["init_soft_mask_type"],
+        args["seed"],
+    )
     rewind_state = copy.deepcopy(model.state_dict())
 
+    mask_parameters = [model.adj_mask1_train]
+    mask_parameter_ids = {id(parameter) for parameter in mask_parameters}
+    backbone_parameters = [
+        parameter
+        for parameter in model.parameters()
+        if id(parameter) not in mask_parameter_ids and parameter.requires_grad
+    ]
     optimizer = torch.optim.Adam(
-        model.parameters(),
+        [
+            {
+                "params": backbone_parameters,
+                "weight_decay": args["weight_decay"],
+            },
+            {
+                "params": mask_parameters,
+                "weight_decay": 0.0,
+            },
+        ],
         lr=args["lr"],
-        weight_decay=args["weight_decay"],
     )
     loss_function = nn.CrossEntropyLoss()
     best_validation = -1.0
@@ -170,7 +175,7 @@ def _discover_ticket(
         logits = model(features, adjacency)
         loss = loss_function(logits[idx_train], labels[idx_train])
         loss.backward()
-        pruning.subgradient_update_mask(model, args)
+        pruning.subgradient_update_edge_mask(model, args)
         optimizer.step()
 
         validation_accuracy, _validation_f1 = _evaluate(
@@ -183,12 +188,9 @@ def _discover_ticket(
         )
         if validation_accuracy > best_validation:
             best_validation = validation_accuracy
-            best_mask = pruning.get_final_mask_epoch(
+            best_mask = pruning.get_final_edge_mask_epoch(
                 model,
-                adj_percent=0.0,
-                wei_percent=0.0,
                 adj_keep_count=adjacency_keep_count,
-                weight_keep_count=weight_keep_count,
             )
         print(
             "[Mask Search] "
@@ -213,12 +215,9 @@ def _train_fixed_ticket(
     model = _build_model(args, adjacency, device)
     model.load_state_dict(ticket_state)
     model.adj_mask1_train.requires_grad = False
-    for layer in model.net_layer:
-        layer.weight_mask_train.requires_grad = False
 
-    adjacency_kept_percent, weight_kept_percent = pruning.print_sparsity(
-        model
-    )
+    adjacency_kept_percent = pruning.print_edge_sparsity(model)
+    weight_kept_percent = 100.0
     optimizer = torch.optim.Adam(
         (
             parameter
@@ -297,12 +296,39 @@ def _scheduled_keep_count(
     )
 
 
+def _dense_backbone_parameter_count(args: dict[str, Any]) -> int:
+    """Count the always-retained tunedGNN model parameters without building it."""
+
+    layers = int(args["num_layers"])
+    hidden = int(args["hidden_channels"])
+    input_channels = int(args["embedding_dim"][0])
+    output_channels = int(args["embedding_dim"][-1])
+    if args["pre_linear"]:
+        message_dims = [hidden] * (layers + 1)
+    else:
+        message_dims = [input_channels] + [hidden] * layers
+    transforms = sum(
+        message_dims[index] * message_dims[index + 1]
+        + message_dims[index + 1]
+        for index in range(layers)
+    )
+    # GCN transforms and tunedGNN's residual linears have the same shapes;
+    # layer norm and batch norm are both present in the original module even
+    # when their corresponding flags are disabled.
+    normalizations = 4 * sum(message_dims[1:])
+    pre_linear = (
+        input_channels * hidden + hidden if args["pre_linear"] else 0
+    )
+    predictor = hidden * output_channels + output_channels
+    return 2 * transforms + normalizations + pre_linear + predictor
+
+
 def run_protocol(args: dict[str, Any]) -> None:
     device = _device(args["device"])
     print(
         "[PruningMode] "
         + (
-            "edge_only=true weight_masks=fixed_dense"
+            "edge_only=true weight_masks=disabled model_weights_kept=100%"
             if args["weight_kept_ratio"] == 1.0
             else "edge_only=false joint_weight_pruning=true"
         ),
@@ -318,9 +344,11 @@ def run_protocol(args: dict[str, Any]) -> None:
         + [base_dim[-1]]
     )
 
+    # Match tunedGNN: seed once, then let consecutive reset/initialization
+    # calls produce distinct runs instead of replaying one identical run.
+    pruning.setup_seed(args["seed"])
     for run in range(args["runs"]):
         os.environ["EDSPARSE_SPLIT_RUN"] = str(run)
-        pruning.setup_seed(args["seed"])
         print(
             f"[TunedGNNProtocol] run={run + 1}/{args['runs']} "
             f"seed={args['seed']}",
@@ -330,11 +358,7 @@ def run_protocol(args: dict[str, Any]) -> None:
         original_adjacency_count = int(
             torch.count_nonzero(tensors[0]).item()
         )
-        probe = _build_model(args, tensors[0], device)
-        original_weight_count = sum(
-            layer.weight_mask_fixed.numel() for layer in probe.net_layer
-        )
-        del probe
+        original_weight_count = _dense_backbone_parameter_count(args)
 
         ticket_state = None
         final_result = None
@@ -345,12 +369,7 @@ def run_protocol(args: dict[str, Any]) -> None:
                 round_index,
                 args["prune_rounds"],
             )
-            weight_keep_count = _scheduled_keep_count(
-                original_weight_count,
-                args["weight_kept_ratio"],
-                round_index,
-                args["prune_rounds"],
-            )
+            weight_keep_count = original_weight_count
             print(
                 "[PruningRound] "
                 f"round={round_index}/{args['prune_rounds']} "
@@ -366,7 +385,6 @@ def run_protocol(args: dict[str, Any]) -> None:
                 device,
                 ticket_state,
                 adjacency_keep_count,
-                weight_keep_count,
             )
             final_result = _train_fixed_ticket(
                 args,
@@ -469,6 +487,11 @@ def _validate_args(args: dict[str, Any]) -> None:
             raise ValueError(f"{key} must be positive")
     if args["num_layers"] < 2:
         raise ValueError("num_layers must be at least 2")
+    if args["weight_kept_ratio"] != 1.0:
+        raise ValueError(
+            "Unified-LTH is edge-only in this benchmark; "
+            "--weight-kept-ratio must be 1.0"
+        )
 
 
 if __name__ == "__main__":

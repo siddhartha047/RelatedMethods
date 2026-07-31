@@ -14,10 +14,16 @@ import pdb
 SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).resolve().parents[4])).resolve()
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
+EDSPARSE_ROOT = Path(
+    os.environ.get("EDSPARSE_PROJECT_ROOT", SUPPORT_GRAPH_ROOT / "EDSparse")
+).resolve()
+if str(EDSPARSE_ROOT) not in sys.path:
+    sys.path.insert(0, str(EDSPARSE_ROOT))
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
 from ICML_SPARSIFICATION.scripts.common.baseline_result_utils import (
     multilabel_roc_auc_f1_percent,
 )
+from edsparse.third_party.tunedgnn.medium_model import MPNNs as TunedGNNMPNN
 
 import torch
 import torch.nn.functional as F
@@ -75,6 +81,15 @@ parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=None)
 parser.add_argument('--residual', type=int, choices=(0, 1), default=None)
 parser.add_argument('--layer_norm', type=int, choices=(0, 1), default=None)
 parser.add_argument('--batch_norm', type=int, choices=(0, 1), default=None)
+parser.add_argument('--jumping_knowledge', type=int, choices=(0, 1), default=None)
+parser.add_argument(
+    '--tunedgnn_medium_backbone',
+    action='store_true',
+    help=(
+        "Use tunedGNN's exact medium-graph MPNN architecture around DSpar's "
+        "sparsified adjacency."
+    ),
+)
 
 
 
@@ -95,6 +110,36 @@ def get_optimizer(model_config, model):
     else:
         raise NotImplementedError
     return optimizer
+
+
+def build_model(model_config, in_channels, out_channels, *, tunedgnn_backbone):
+    """Build DSpar's native model or the exact tunedGNN comparison backbone."""
+
+    architecture = model_config['architecture']
+    if not tunedgnn_backbone:
+        GNN = getattr(models, model_config['arch_name'])
+        return GNN(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            **architecture,
+        )
+
+    model_config['arch_name'] = 'TunedGNNMPNN'
+    return TunedGNNMPNN(
+        in_channels=in_channels,
+        hidden_channels=int(architecture['hidden_channels']),
+        out_channels=out_channels,
+        local_layers=int(architecture['num_layers']),
+        dropout=float(architecture.get('dropout', 0.0)),
+        heads=1,
+        pre_ln=False,
+        pre_linear=bool(architecture.get('pre_linear', False)),
+        res=bool(architecture.get('residual', False)),
+        ln=bool(architecture.get('layer_norm', False)),
+        bn=bool(architecture.get('batch_norm', False)),
+        jk=bool(architecture.get('jumping_knowledge', False)),
+        gnn='gcn',
+    )
 
 
 def to_inductive(data):
@@ -258,15 +303,33 @@ def main():
             architecture['layer_norm'] = bool(args.layer_norm)
         if args.input_dropout is not None:
             architecture['input_dropout'] = float(args.input_dropout)
-        # DSpar's native GCN does not expose tunedGNN's separate pre-linear
-        # and LayerNorm modules. Record those requested values explicitly
-        # rather than silently substituting a different operation.
+        if args.pre_linear is not None:
+            architecture['pre_linear'] = bool(args.pre_linear)
+        if args.jumping_knowledge is not None:
+            architecture['jumping_knowledge'] = bool(args.jumping_knowledge)
         model_config['pre_linear'] = bool(args.pre_linear or 0)
         model_config['layer_norm'] = bool(args.layer_norm or 0)
         model_config['input_dropout'] = args.input_dropout
         model_config['metric'] = args.metric
+        if args.tunedgnn_medium_backbone:
+            # TunedGNN's GCNConv performs both operations internally.  Leaving
+            # DSpar's native preprocessing enabled would normalize twice.
+            model_config['loop'] = False
+            model_config['normalize'] = False
 
     print(f'model config: {model_config}')
+    if args.tunedgnn_medium_backbone:
+        print(
+            '[TunedGNNBackbone] profile=medium gnn=gcn '
+            f'hidden_channels={architecture["hidden_channels"]} '
+            f'num_layers={architecture["num_layers"]} '
+            f'dropout={architecture.get("dropout", 0.0)} '
+            f'pre_linear={bool(architecture.get("pre_linear", False))} '
+            f'residual={bool(architecture.get("residual", False))} '
+            f'layer_norm={bool(architecture.get("layer_norm", False))} '
+            f'batch_norm={bool(architecture.get("batch_norm", False))} '
+            'normalization=inside_gcnconv'
+        )
     print(f'clipping grad norm: {args.grad_norm}')
     args.model = model_config['arch_name']
     assert model_config['name'] in ['GCN', 'SAGE', 'GCN2']
@@ -307,6 +370,7 @@ def main():
         enable_sparsify,
         args.random_sparsify,
         args.kept_ratio,
+        preserve_undirected=args.tunedgnn_medium_backbone,
     )
     args.actual_kept_ratio = getattr(
         data,
@@ -327,8 +391,12 @@ def main():
         )
     multi_label = data.y.dim() > 1 and data.y.size(-1) > 1
 
-    GNN = getattr(models, model_config['arch_name'])
-    model = GNN(in_channels=num_features, out_channels=num_classes, **model_config['architecture'])
+    model = build_model(
+        model_config,
+        num_features,
+        num_classes,
+        tunedgnn_backbone=args.tunedgnn_medium_backbone,
+    )
     print(model)
     model.to(device)
 

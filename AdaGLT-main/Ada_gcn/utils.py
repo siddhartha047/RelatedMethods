@@ -312,7 +312,10 @@ def load_citation(dataset_str="cora", normalization="AugNormAdj", porting_to_tor
     data_root = os.environ.get("BASELINE_DATA_ROOT", DEFAULT_DATA_DIR)
     if data_path == datadir:
         adj, features, labels, idx_train, idx_val, idx_test = load_dense_tensors(data_root, dataset_str)
-        features = torch_row_normalize_features(features)
+        # The tunedGNN protocol consumes the connector features exactly as
+        # loaded. AdaGLT's legacy citation loader row-normalizes below, but
+        # doing that here changes the comparison backbone and substantially
+        # hurts tuned presets such as Cora.
         degree = adj.sum(dim=1).long()
         learning_type = "transductive"
         print(f"train: {len(idx_train)} val: {len(idx_val)} test: {len(idx_test)}")
@@ -436,10 +439,11 @@ def calcu_sparsity(edge_masks, edge_num):
 
 
 def enforce_edge_keep_ratio(edge_masks, edge_index, keep_ratio):
-    """Calibrate learned masks to an exact directed-edge budget.
+    """Calibrate learned masks to the requested original-edge budget.
 
-    Existing learned edges receive priority. Ties within learned or removed
-    edges are resolved deterministically by ``torch.topk`` on CPU.
+    Undirected input graphs are selected as edge pairs so pruning cannot
+    silently turn a symmetric graph into a directed one. Directed graphs keep
+    the original exact directed-edge behavior.
     """
 
     if not 0 < keep_ratio <= 1:
@@ -448,8 +452,15 @@ def enforce_edge_keep_ratio(edge_masks, edge_index, keep_ratio):
     edge_num = int(edge_index.shape[1])
     if edge_num == 0:
         return edge_masks
-    target_edges = max(1, min(edge_num, int(edge_num * keep_ratio)))
+    target_edges = max(1, min(edge_num, round(edge_num * keep_ratio)))
     source, target = edge_index
+    edge_lookup = {
+        (int(src), int(dst)): index
+        for index, (src, dst) in enumerate(zip(source.tolist(), target.tolist()))
+    }
+    is_undirected = all(
+        (dst, src) in edge_lookup for src, dst in edge_lookup
+    )
     calibrated = []
     for edge_mask in edge_masks:
         mask = torch.nan_to_num(
@@ -458,15 +469,52 @@ def enforce_edge_keep_ratio(edge_masks, edge_index, keep_ratio):
             posinf=1.0,
             neginf=0.0,
         )
-        learned_scores = mask[source, target]
-        selected = torch.topk(
-            learned_scores,
-            k=target_edges,
-            largest=True,
-            sorted=False,
-        ).indices
         exact_mask = torch.zeros_like(mask)
-        exact_mask[source[selected], target[selected]] = 1.0
+        learned_scores = mask[source, target]
+        if not is_undirected:
+            selected = torch.topk(
+                learned_scores,
+                k=target_edges,
+                largest=True,
+                sorted=False,
+            ).indices
+            exact_mask[source[selected], target[selected]] = 1.0
+            calibrated.append(exact_mask)
+            continue
+
+        diagonal_indices = []
+        pairs = []
+        for index, (src, dst) in enumerate(
+            zip(source.tolist(), target.tolist())
+        ):
+            if src == dst:
+                diagonal_indices.append(index)
+            elif src < dst:
+                reverse_index = edge_lookup[(dst, src)]
+                score = (
+                    float(learned_scores[index])
+                    + float(learned_scores[reverse_index])
+                ) / 2.0
+                pairs.append((score, src, dst, index, reverse_index))
+
+        # Stable node-id tie breaking makes all-one/near-tied masks
+        # deterministic across devices.
+        pairs.sort(key=lambda item: (-item[0], item[1], item[2]))
+        selected_pairs = min(len(pairs), target_edges // 2)
+        for _score, _src, _dst, first, reverse in pairs[:selected_pairs]:
+            exact_mask[source[first], target[first]] = 1.0
+            exact_mask[source[reverse], target[reverse]] = 1.0
+
+        remaining = target_edges - 2 * selected_pairs
+        if remaining and diagonal_indices:
+            diagonal_indices.sort(
+                key=lambda index: (
+                    -float(learned_scores[index]),
+                    int(source[index]),
+                )
+            )
+            for index in diagonal_indices[:remaining]:
+                exact_mask[source[index], target[index]] = 1.0
         calibrated.append(exact_mask)
     return calibrated
 

@@ -255,7 +255,11 @@ class GCN(torch.nn.Module):
         combined = None
         for layer, conv in enumerate(self.convs):
             previous = x
-            x = conv(x, edge_index, None, mask)
+            # Treat the learned 0/1 mask as the adjacency weight so GCN degree
+            # normalization is computed on the retained graph.  Applying the
+            # mask later in ``message`` normalizes with full-graph degrees and
+            # shrinks every sparse layer by roughly the keep ratio.
+            x = conv(x, edge_index, mask)
             if self.residual:
                 x = x + self.residual_lins[layer](previous)
             if self.layer_norm:
@@ -471,10 +475,9 @@ class GCNConv(MessagePassing):
 
     def forward(self, x: Tensor, edge_index: Adj,
                 edge_weight: OptTensor = None, edge_mask=None) -> Tensor:
-        if isinstance(edge_mask, Tensor):
-            self.edge_mask = edge_mask
-        else:
-            self.register_parameter("edge_mask", None)
+        self._message_edge_mask = (
+            edge_mask if isinstance(edge_mask, Tensor) else None
+        )
         
         if isinstance(x, (tuple, list)):
             raise ValueError(f"'{self.__class__.__name__}' received a tuple "
@@ -517,8 +520,8 @@ class GCNConv(MessagePassing):
         return out
 
     def message(self, x_j: Tensor, edge_weight: OptTensor) -> Tensor:
-        if self.edge_mask is not None:
-            edge_mask = self.edge_mask
+        if self._message_edge_mask is not None:
+            edge_mask = self._message_edge_mask
             if edge_mask.numel() != x_j.size(0):
                 if edge_mask.numel() < x_j.size(0):
                     pad = edge_mask.new_ones(x_j.size(0) - edge_mask.numel())
