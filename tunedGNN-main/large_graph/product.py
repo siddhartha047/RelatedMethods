@@ -123,6 +123,12 @@ parser.add_argument('--res', action='store_true')
 parser.add_argument('--eval_step', type=int, default=1)
 parser.add_argument('--display_step', type=int, default=1)
 parser.add_argument('--loader_workers', type=int, default=0)
+parser.add_argument(
+    '--eval_num_parts',
+    type=int,
+    default=1,
+    help='Partition evaluation to reduce peak GPU memory; 1 preserves the original full-graph evaluation.',
+)
 parser.add_argument('--data_dir', type=str, default=DEFAULT_DATA_DIR)
 args = parser.parse_args()
 print(args)
@@ -145,9 +151,15 @@ evaluator = Evaluator(name='ogbn-products') if args.dataset == 'ogbn-products' e
 
 train_loader = RandomNodeLoader(data, num_parts=10, shuffle=True,
                                 num_workers=args.loader_workers)
-# Increase the num_parts of the test loader if you cannot fit
-# the full batch graph into your GPU:
-test_loader = RandomNodeLoader(data, num_parts=1, num_workers=args.loader_workers)
+# Increase the number of evaluation partitions when full-graph inference does
+# not fit beside other concurrent GPU jobs.
+if args.eval_num_parts < 1:
+    raise ValueError('--eval_num_parts must be positive')
+test_loader = RandomNodeLoader(
+    data,
+    num_parts=args.eval_num_parts,
+    num_workers=args.loader_workers,
+)
 
 model = GNN(
     in_channels=num_features,
@@ -173,13 +185,18 @@ def train(epoch):
 
         data = transform(data)
         out = model(data.x, data.adj_t)
+        train_examples = int(data.train_mask.sum())
+        if train_examples == 0:
+            continue
         loss = F.cross_entropy(out[data.train_mask], data.y[data.train_mask].view(-1))
         (loss).backward()
         optimizer.step()
 
-        total_loss += float(loss) * int(data.train_mask.sum())
-        total_examples += int(data.train_mask.sum())
+        total_loss += float(loss) * train_examples
+        total_examples += train_examples
 
+    if total_examples == 0:
+        raise RuntimeError('RandomNodeLoader produced no training examples')
     return total_loss / total_examples
 
 
@@ -195,7 +212,10 @@ def test(epoch):
         out = model(data.x, data.adj_t)
         out = out.argmax(dim=-1, keepdim=True)
         for split in ['train', 'valid', 'test']:
-            mask = data[f'{split}_mask']
+            # EDSparse/PyG name the validation mask ``val_mask`` whereas OGB
+            # calls the split ``valid``.
+            mask_name = 'val_mask' if split == 'valid' else f'{split}_mask'
+            mask = data[mask_name]
             y_true[split].append(data.y[mask].cpu())
             y_pred[split].append(out[mask].cpu())
 

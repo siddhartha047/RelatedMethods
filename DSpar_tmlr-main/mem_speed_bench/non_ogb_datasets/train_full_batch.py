@@ -5,6 +5,7 @@ import numpy as np
 from torch.autograd import grad
 sys.path.append(os.getcwd())
 import argparse
+import inspect
 import random
 import time
 import warnings
@@ -118,10 +119,26 @@ def build_model(model_config, in_channels, out_channels, *, tunedgnn_backbone):
     architecture = model_config['architecture']
     if not tunedgnn_backbone:
         GNN = getattr(models, model_config['arch_name'])
+        # The shared tunedGNN contract contains optional fields such as
+        # ``pre_linear`` and ``jumping_knowledge``.  DSpar's native GCN does
+        # not implement those fields; passing them through made every
+        # large-graph run fail before the model was constructed.  Retain every
+        # option supported by the selected native architecture and explicitly
+        # report any inapplicable fields.
+        accepted = set(inspect.signature(GNN.__init__).parameters)
+        native_architecture = {
+            key: value for key, value in architecture.items() if key in accepted
+        }
+        ignored = sorted(set(architecture) - set(native_architecture))
+        if ignored:
+            print(
+                '[DSparBackbone] ignoring unsupported native fields: '
+                + ', '.join(ignored)
+            )
         return GNN(
             in_channels=in_channels,
             out_channels=out_channels,
-            **architecture,
+            **native_architecture,
         )
 
     model_config['arch_name'] = 'TunedGNNMPNN'

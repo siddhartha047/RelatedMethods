@@ -155,6 +155,11 @@ def train(args, model, dataloader, _labels, _train_idx, criterion, optimizer, _e
 
         # torch.cuda.empty_cache()
 
+    if total == 0:
+        raise RuntimeError(
+            "The DGL training loader produced no batches; check TMPDIR and "
+            "worker-process startup errors."
+        )
     return loss_sum / total
 
 
@@ -210,7 +215,7 @@ def run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, n_running)
         graph_sampler=train_sampler,
         batch_size=train_batch_size,
         shuffle=True,
-        num_workers=10
+        num_workers=args.num_workers
     )
 
     eval_sampler = MultiLayerNeighborSampler([100 for _ in range(args.n_layers)])
@@ -221,7 +226,7 @@ def run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, n_running)
         graph_sampler=eval_sampler,
         batch_size=65536,
         shuffle=False,
-        num_workers=10
+        num_workers=args.num_workers
     )
 
     criterion = nn.BCEWithLogitsLoss()
@@ -316,7 +321,19 @@ def main():
     argparser.add_argument("--save-pred", action="store_true", help="save final predictions")
     argparser.add_argument("--jk", action="store_true")
     argparser.add_argument("--data_dir", type=str, default=DEFAULT_DATA_DIR)
+    argparser.add_argument(
+        "--loader_workers",
+        "--num-workers",
+        "--num_workers",
+        dest="num_workers",
+        type=int,
+        default=10,
+        help="DGL sampler workers for each training/evaluation loader.",
+    )
     args = argparser.parse_args()
+
+    if args.num_workers < 0:
+        raise ValueError("--loader_workers must be non-negative")
 
     if args.cpu:
         device = torch.device("cpu")
