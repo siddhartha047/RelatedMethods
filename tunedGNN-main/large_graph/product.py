@@ -259,6 +259,7 @@ for epoch in range(1, args.epochs + 1):
                       f'Train: {100 * train_acc:.2f}%, '
                       f'Valid: {100 * val_acc:.2f}%, '
                       f'Test: {100 * test_acc:.2f}%, '
+                      f'Test F1 Macro: {test_f1:.2f}%, '
                       f'Best Valid: {100 * best_val:.2f}%, '
                       f'Best Test: {100 * final_test:.2f}%')
     elif epoch % args.display_step == 0:

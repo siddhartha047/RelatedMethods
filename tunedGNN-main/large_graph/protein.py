@@ -26,7 +26,10 @@ if str(TUNEDGNN_ROOT) not in sys.path:
     sys.path.insert(0, str(TUNEDGNN_ROOT))
 from EDSparseDataset import DEFAULT_SPLIT_PROTOCOL, split_fingerprint
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
-from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    append_baseline_result,
+    multilabel_roc_auc_f1_percent,
+)
 
 device = None
 dataset = "ogbn-proteins"
@@ -191,6 +194,10 @@ def evaluate(args, model, dataloader, labels, train_idx, val_idx, test_idx, crit
     val_loss = criterion(preds[val_idx], labels[val_idx].float()).item()
     test_loss = criterion(preds[test_idx], labels[test_idx].float()).item()
 
+    _, test_f1 = multilabel_roc_auc_f1_percent(
+        labels[test_idx], preds[test_idx]
+    )
+
     return (
         evaluator(preds[train_idx], labels[train_idx]),
         evaluator(preds[val_idx], labels[val_idx]),
@@ -198,6 +205,7 @@ def evaluate(args, model, dataloader, labels, train_idx, val_idx, test_idx, crit
         train_loss,
         val_loss,
         test_loss,
+        test_f1,
         preds,
     )
 
@@ -238,6 +246,7 @@ def run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, n_running)
 
     total_time = 0
     val_score, best_val_score, final_test_score = 0, 0, 0
+    final_test_f1 = 0.0
 
     train_scores, val_scores, test_scores = [], [], []
     losses, train_losses, val_losses, test_losses = [], [], [], []
@@ -252,13 +261,14 @@ def run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, n_running)
         total_time += toc - tic
 
         if epoch == args.n_epochs or epoch % args.eval_every == 0 or epoch % args.log_every == 0:
-            train_score, val_score, test_score, train_loss, val_loss, test_loss, pred = evaluate(
+            train_score, val_score, test_score, train_loss, val_loss, test_loss, test_f1, pred = evaluate(
                 args, model, eval_dataloader, labels, train_idx, val_idx, test_idx, criterion, evaluator_wrapper
             )
 
             if val_score > best_val_score:
                 best_val_score = val_score
                 final_test_score = test_score
+                final_test_f1 = test_f1
                 final_pred = pred
 
             if epoch % args.log_every == 0:
@@ -267,6 +277,7 @@ def run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, n_running)
                   f'Train: {100 * train_score:.2f}%, '
                   f'Valid: {100 * val_score:.2f}%, '
                   f'Test: {100 * test_score:.2f}%, '
+                  f'Test F1 Macro: {test_f1:.2f}%, '
                   f'Best Valid: {100 * best_val_score:.2f}%, '
                   f'Best Test: {100 * final_test_score:.2f}%')
             for l, e in zip(
@@ -282,7 +293,7 @@ def run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, n_running)
         os.makedirs("./output", exist_ok=True)
         torch.save(F.softmax(final_pred, dim=1), f"./output/{n_running}.pt")
 
-    return best_val_score, final_test_score
+    return best_val_score, final_test_score, final_test_f1
 
 
 def count_parameters(args):
@@ -349,14 +360,17 @@ def main():
     labels, train_idx, val_idx, test_idx = map(lambda x: x.to(device), (labels, train_idx, val_idx, test_idx))
 
     # run
-    val_scores, test_scores = [], []
+    val_scores, test_scores, test_f1_scores = [], [], []
 
     for i in range(args.n_runs):
         print("Running", i)
         seed(args.seed + i)
-        val_score, test_score = run(args, graph, labels, train_idx, val_idx, test_idx, evaluator, i + 1)
+        val_score, test_score, test_f1 = run(
+            args, graph, labels, train_idx, val_idx, test_idx, evaluator, i + 1
+        )
         val_scores.append(val_score)
         test_scores.append(test_score)
+        test_f1_scores.append(test_f1)
         append_baseline_result(
             method=os.environ.get("BASELINE_METHOD", "tunedgnn"),
             dataset=dataset,
@@ -365,6 +379,7 @@ def main():
             epochs=args.n_epochs,
             valid_acc=100.0 * val_score,
             test_acc=100.0 * test_score,
+            test_f1_macro=test_f1,
         )
 
     print(args)
@@ -373,6 +388,12 @@ def main():
     print(
         f"Final Test: {100.0 * scores.mean().item():.2f} "
         f"± {100.0 * std:.2f}"
+    )
+    f1_scores = torch.tensor(test_f1_scores)
+    f1_std = f1_scores.std(unbiased=False).item() if f1_scores.numel() > 1 else 0.0
+    print(
+        f"Final Test F1 (Macro): {f1_scores.mean().item():.2f} "
+        f"± {f1_std:.2f}"
     )
 
 

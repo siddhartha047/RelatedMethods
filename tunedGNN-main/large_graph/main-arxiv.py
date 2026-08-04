@@ -13,6 +13,7 @@ from logger import *
 from dataset import load_dataset
 from data_utils import eval_acc, eval_rocauc, load_fixed_splits
 from eval import *
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import macro_f1_percent
 
 
 def fix_seed(seed=42):
@@ -102,7 +103,17 @@ for run in range(args.runs):
 
         result = evaluate(model, dataset, split_idx, eval_func, criterion, args)
 
-        logger.add_result(run, result[:-1])
+        output = result[-1]
+        train_f1 = macro_f1_percent(
+            dataset.label[split_idx['train']], output[split_idx['train']]
+        )
+        test_f1 = macro_f1_percent(
+            dataset.label[split_idx['test']], output[split_idx['test']]
+        )
+        logger.add_result(
+            run,
+            result[:-1] + (train_f1 / 100.0, test_f1 / 100.0),
+        )
 
         if result[1] > best_val:
             best_val = result[1]
@@ -116,6 +127,7 @@ for run in range(args.runs):
                   f'Train: {100 * result[0]:.2f}%, '
                   f'Valid: {100 * result[1]:.2f}%, '
                   f'Test: {100 * result[2]:.2f}%, '
+                  f'Test F1 Macro: {test_f1:.2f}%, '
                   f'Best Valid: {100 * best_val:.2f}%, '
                   f'Best Test: {100 * best_test:.2f}%')
     logger.print_statistics(run)

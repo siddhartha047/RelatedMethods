@@ -9,7 +9,9 @@ class Logger(object):
         self.results = [[] for _ in range(runs)]
 
     def add_result(self, run, result):
-        assert len(result) == 4
+        # Accuracy-only callers use four fields.  Large-graph entrypoints that
+        # compute macro-F1 append train/test F1 as fields five and six.
+        assert len(result) in [4, 6]
         assert run >= 0 and run < len(self.results)
         self.results[run].append(result)
 
@@ -29,6 +31,8 @@ class Logger(object):
             print(f'Chosen epoch: {ind}')
             print(f'Final Train: {result[ind, 0]:.2f}')
             print(f'Final Test: {result[ind, 2]:.2f}')
+            if result.shape[1] >= 6:
+                print(f'Final Test F1 (Macro): {result[ind, 5]:.2f}')
             self.test=result[ind, 2]
             append_baseline_result(
                 method=os.environ.get('BASELINE_METHOD', 'tunedgnn'),
@@ -39,6 +43,8 @@ class Logger(object):
                 train_acc=result[ind, 0].item(),
                 valid_acc=result[ind, 1].item(),
                 test_acc=result[ind, 2].item(),
+                train_f1_macro=result[ind, 4].item() if result.shape[1] >= 6 else None,
+                test_f1_macro=result[ind, 5].item() if result.shape[1] >= 6 else None,
                 chosen_epoch=ind,
             )
         else:
@@ -50,12 +56,19 @@ class Logger(object):
                 test1 = r[:, 2].max().item()
                 valid = r[:, 1].max().item()
                 if mode == 'max_acc':
-                    train2 = r[r[:, 1].argmax(), 0].item()
-                    test2 = r[r[:, 1].argmax(), 2].item()
+                    best_idx = r[:, 1].argmax()
+                    train2 = r[best_idx, 0].item()
+                    test2 = r[best_idx, 2].item()
                 else:
-                    train2 = r[r[:, 3].argmin(), 0].item()
-                    test2 = r[r[:, 3].argmin(), 2].item()
-                best_results.append((train1, test1, valid, train2, test2))
+                    best_idx = r[:, 3].argmin()
+                    train2 = r[best_idx, 0].item()
+                    test2 = r[best_idx, 2].item()
+                if r.shape[1] >= 6:
+                    train_f1 = r[best_idx, 4].item()
+                    test_f1 = r[best_idx, 5].item()
+                    best_results.append((train1, test1, valid, train2, test2, train_f1, test_f1))
+                else:
+                    best_results.append((train1, test1, valid, train2, test2))
 
             best_result = torch.tensor(best_results)
 
@@ -72,6 +85,9 @@ class Logger(object):
             print(f'  Final Train: {r.mean():.2f} ± {_std(r):.2f}')
             r = best_result[:, 4]
             print(f'   Final Test: {r.mean():.2f} ± {_std(r):.2f}')
+            if best_result.shape[1] >= 7:
+                test_f1 = best_result[:, 6]
+                print(f'Final Test F1 (Macro): {test_f1.mean():.2f} ± {_std(test_f1):.2f}')
 
             self.test=r.mean()
             return best_result[:, 4]
