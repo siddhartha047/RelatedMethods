@@ -17,6 +17,14 @@ class Logger(object):
 
     def print_statistics(self, run=None, mode='max_acc'):
         if run is not None:
+            if not self.results[run]:
+                # No add_result call happened, e.g. a short-epoch smoke/timing
+                # run finished before this preset's eval warmup (eval_epoch)
+                # was reached. Nothing to summarize; don't crash the process
+                # over an empty accuracy trajectory.
+                print(f'Run {run + 1:02d}: no evaluated epochs recorded')
+                self.test = None
+                return
             result = 100 * torch.tensor(self.results[run])
             argmax = result[:, 1].argmax().item()
             argmin = result[:, 3].argmin().item()
@@ -48,7 +56,15 @@ class Logger(object):
                 chosen_epoch=ind,
             )
         else:
-            result = 100 * torch.tensor(self.results)
+            non_empty_runs = [run_results for run_results in self.results if run_results]
+            if not non_empty_runs:
+                # Every run finished with no add_result calls (e.g. a short
+                # timing-only run that ended before this preset's eval_epoch
+                # warmup). Nothing to aggregate; don't crash on empty tensors.
+                print('All runs: no evaluated epochs recorded')
+                self.test = None
+                return torch.tensor([])
+            result = 100 * torch.tensor(non_empty_runs)
 
             best_results = []
             for r in result:
