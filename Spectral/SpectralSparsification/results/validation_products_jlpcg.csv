@@ -1,0 +1,2 @@
+dataset,status,backend,num_nodes,num_directed_edges,num_undirected_edges,er_compute_seconds,finalize_seconds,wall_seconds,artifact,error
+ogbn-products,complete,jlpcg,2449029,123718280,61859012,130.47813981911168,9.23016798030585,140.2262274445966,/rcfs/scratch/dass304/EDSparse/data/ogb/ogbn_products/spectral_sparsification/effective_resistance_directed.npz,

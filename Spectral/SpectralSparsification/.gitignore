@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/*.log
+logs/*.pid
+logs/latest.log
+logs/slurm/
+results/er_precompute_status.csv
+results/slurm_*.csv
+.julia_depot/
+build/

@@ -1,0 +1,63 @@
+VERIFY_START index=1/19 dataset=cora
+train:torch.Size([140]), valid:torch.Size([500]), test:torch.Size([1000])
+VERIFY_EDSPARSE dataset=cora directed_edges=10556 exact_order=true
+VERIFY_SCAFFOLD dataset=cora input_edges=10556 direct_order=true canonical_topology=true
+VERIFY_START index=2/19 dataset=citeseer
+train:torch.Size([120]), valid:torch.Size([500]), test:torch.Size([1000])
+VERIFY_EDSPARSE dataset=citeseer directed_edges=9104 exact_order=true
+VERIFY_SCAFFOLD dataset=citeseer input_edges=9104 direct_order=true canonical_topology=true
+VERIFY_START index=3/19 dataset=pubmed
+train:torch.Size([60]), valid:torch.Size([500]), test:torch.Size([1000])
+VERIFY_EDSPARSE dataset=pubmed directed_edges=88648 exact_order=true
+VERIFY_SCAFFOLD dataset=pubmed input_edges=88648 direct_order=true canonical_topology=true
+VERIFY_START index=4/19 dataset=amazon-computer
+VERIFY_EDSPARSE dataset=amazon-computer directed_edges=491722 exact_order=true
+VERIFY_SCAFFOLD dataset=amazon-computer input_edges=491722 direct_order=true canonical_topology=true
+VERIFY_START index=5/19 dataset=amazon-photo
+VERIFY_EDSPARSE dataset=amazon-photo directed_edges=238162 exact_order=true
+VERIFY_SCAFFOLD dataset=amazon-photo input_edges=238162 direct_order=true canonical_topology=true
+VERIFY_START index=6/19 dataset=coauthor-cs
+VERIFY_EDSPARSE dataset=coauthor-cs directed_edges=163788 exact_order=true
+VERIFY_SCAFFOLD dataset=coauthor-cs input_edges=163788 direct_order=true canonical_topology=true
+VERIFY_START index=7/19 dataset=coauthor-physics
+VERIFY_EDSPARSE dataset=coauthor-physics directed_edges=495924 exact_order=true
+VERIFY_SCAFFOLD dataset=coauthor-physics input_edges=495924 direct_order=true canonical_topology=true
+VERIFY_START index=8/19 dataset=wikics
+/people/dass304/.conda/envs/py312/lib/python3.12/site-packages/torch_geometric/datasets/wikics.py:45: UserWarning: The WikiCS dataset now returns an undirected graph by default. Please explicitly specify 'is_undirected=False' to restore the old behavior.
+  warnings.warn(
+VERIFY_EDSPARSE dataset=wikics directed_edges=431726 exact_order=true
+VERIFY_SCAFFOLD dataset=wikics input_edges=431726 direct_order=true canonical_topology=true
+VERIFY_START index=9/19 dataset=squirrel
+VERIFY_EDSPARSE dataset=squirrel directed_edges=46998 exact_order=true
+VERIFY_SCAFFOLD dataset=squirrel input_edges=46998 direct_order=true canonical_topology=true
+VERIFY_START index=10/19 dataset=chameleon
+VERIFY_EDSPARSE dataset=chameleon directed_edges=8854 exact_order=true
+VERIFY_SCAFFOLD dataset=chameleon input_edges=8854 direct_order=true canonical_topology=true
+VERIFY_START index=11/19 dataset=roman-empire
+VERIFY_EDSPARSE dataset=roman-empire directed_edges=65854 exact_order=true
+VERIFY_SCAFFOLD dataset=roman-empire input_edges=65854 direct_order=true canonical_topology=true
+VERIFY_START index=12/19 dataset=amazon-ratings
+VERIFY_EDSPARSE dataset=amazon-ratings directed_edges=186100 exact_order=true
+VERIFY_SCAFFOLD dataset=amazon-ratings input_edges=186100 direct_order=true canonical_topology=true
+VERIFY_START index=13/19 dataset=minesweeper
+VERIFY_EDSPARSE dataset=minesweeper directed_edges=78804 exact_order=true
+VERIFY_SCAFFOLD dataset=minesweeper input_edges=78804 direct_order=true canonical_topology=true
+VERIFY_START index=14/19 dataset=questions
+VERIFY_EDSPARSE dataset=questions directed_edges=307080 exact_order=true
+VERIFY_SCAFFOLD dataset=questions input_edges=307080 direct_order=true canonical_topology=true
+VERIFY_START index=15/19 dataset=reddit
+VERIFY_EDSPARSE dataset=reddit directed_edges=114615892 exact_order=true
+VERIFY_SCAFFOLD dataset=reddit input_edges=57307946 direct_order=false canonical_topology=true
+VERIFY_START index=16/19 dataset=ogbn-products
+VERIFY_EDSPARSE dataset=ogbn-products directed_edges=123718280 exact_order=true
+VERIFY_SCAFFOLD dataset=ogbn-products input_edges=123718280 direct_order=true canonical_topology=true
+VERIFY_START index=17/19 dataset=ogbn-arxiv
+VERIFY_EDSPARSE dataset=ogbn-arxiv directed_edges=1166243 exact_order=true
+VERIFY_SCAFFOLD dataset=ogbn-arxiv input_edges=1166243 direct_order=true canonical_topology=true
+VERIFY_START index=18/19 dataset=ogbn-proteins
+VERIFY_EDSPARSE dataset=ogbn-proteins directed_edges=79122504 exact_order=true
+VERIFY_SCAFFOLD dataset=ogbn-proteins input_edges=79122504 direct_order=true canonical_topology=true
+VERIFY_START index=19/19 dataset=pokec
+VERIFY_EDSPARSE dataset=pokec directed_edges=30622564 exact_order=true
+VERIFY_SCAFFOLD dataset=pokec input_edges=30622564 direct_order=true canonical_topology=true
+VERIFY_DONE datasets=19 failures=0

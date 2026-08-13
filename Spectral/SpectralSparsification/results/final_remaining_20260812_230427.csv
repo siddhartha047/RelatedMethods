@@ -1,0 +1,5 @@
+dataset,status,backend,num_nodes,num_directed_edges,num_undirected_edges,er_compute_seconds,finalize_seconds,wall_seconds,artifact,error
+ogbn-products,complete,jlpcg,2449029,123718280,61859012,303.9342618151568,56.49193740170449,360.6718194507994,/rcfs/scratch/dass304/EDSparse/data/ogb/ogbn_products/spectral_sparsification/effective_resistance_directed.npz,
+ogbn-arxiv,complete,laplacians,169343,1166243,1157799,4.73636263,0.049423658,98.95295433932915,/rcfs/scratch/dass304/EDSparse/data/ogb/ogbn_arxiv/spectral_sparsification/effective_resistance_directed.npz,
+ogbn-proteins,complete,jlpcg,132534,79122504,39561252,265.1624969057739,7.471711039077491,282.7872678129934,/rcfs/scratch/dass304/EDSparse/data/ogb/ogbn_proteins/spectral_sparsification/effective_resistance_directed.npz,
+pokec,complete,jlpcg,1632803,30622564,22301964,93.0253179250285,8.154383434914052,106.18458371516317,/rcfs/scratch/dass304/EDSparse/data/pokec/spectral_sparsification/effective_resistance_directed.npz,
