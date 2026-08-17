@@ -193,9 +193,18 @@ class MoE(nn.Module):
 
         node_idx, num_edges_per_node = edge_index[0].unique(return_counts=True)
         k_per_node = torch.sum(node_gates * torch.unsqueeze(self.k_list,0),dim=1) # [num_nodes,num_experts]*[1,num_experts]-->[num_nodes,num_experts]-sum->[num_nodes]
-        k_edges_per_node = (k_per_node * num_edges_per_node) # [num_nodes]*[num_nodes]-->[num_nodes]
+        # Mini-batches can contain destination-only or isolated nodes. The
+        # original full-graph code assumed every node occurred in edge_index[0]
+        # and multiplied incompatible vectors in that case.
+        k_edges_per_node = (
+            k_per_node.index_select(0, node_idx) * num_edges_per_node
+        )
+        # Both branches must stay integral: testing/returning the unrounded
+        # float promotes the result back to float, which discards the round,
+        # never applies the one-edge floor, and truncates edge_end_indices
+        # into the *previous* node's block whenever k*degree < 1.
         k_edges_per_node_long = k_edges_per_node.round().long()
-        k_edges_per_node_long = torch.where(k_edges_per_node>0,k_edges_per_node,torch.ones_like(k_edges_per_node_long,device=k_edges_per_node.device))
+        k_edges_per_node_long = torch.where(k_edges_per_node_long>0,k_edges_per_node_long,torch.ones_like(k_edges_per_node_long,device=k_edges_per_node.device))
         
         sparse_values,val_sort_idx = gated_output.sort(descending=True)
         sparse_idx0 = edge_index[0].index_select(dim = -1,index = val_sort_idx) 
@@ -207,18 +216,51 @@ class MoE(nn.Module):
         node_keep_thre_cal = torch.index_select(scores_sorted,dim=-1,index=edge_end_indices) 
         node_keep_thre_augmented = node_keep_thre_cal.repeat_interleave(num_edges_per_node) # num_edges
         mask = BinaryStep.apply(scores_sorted-node_keep_thre_augmented+1e-12)
-        
+
+        # Batch experiments give every expert the same requested keep ratio.
+        # In that case, keep each source node's highest-scored edge first and
+        # allocate the remaining edges globally by learned score. This retains
+        # MoG's minimum-one-edge safeguard while meeting the global budget
+        # exactly whenever target_edges >= the number of source nodes.
+        if self.k_list.numel() and torch.allclose(
+            self.k_list,
+            self.k_list[0].expand_as(self.k_list),
+        ):
+            total_edges = int(mask.numel())
+            requested_ratio = float(self.k_list[0].detach().cpu())
+            target_edges = max(1, min(total_edges, int(total_edges * requested_ratio)))
+            minimum_edges = int(edge_start_indices.numel())
+            exact_edges = max(target_edges, minimum_edges)
+            exact_mask = torch.zeros_like(mask)
+            exact_mask[edge_start_indices] = 1.0
+            remaining = exact_edges - minimum_edges
+            if remaining > 0:
+                candidate_scores = scores_sorted.clone()
+                candidate_scores[edge_start_indices] = -torch.inf
+                selected = torch.topk(
+                    candidate_scores,
+                    k=remaining,
+                    largest=True,
+                    sorted=False,
+                ).indices
+                exact_mask[selected] = 1.0
+            # Exact values in the forward pass, original BinaryStep gradient in
+            # the backward pass.
+            mask = exact_mask + mask - mask.detach()
+
         idx_resort_idx = idx_sort_idx.argsort()
         val_resort_idx = val_sort_idx.argsort()
         mask = mask.index_select(dim=-1,index = idx_resort_idx)
         mask = mask.index_select(dim=-1,index = val_resort_idx)
 
-        D_complete = torch.zeros(edge_index.max() + 1,device = mask.device)
-        P_complete = torch.zeros(edge_index.max() + 1,device = mask.device)
+        D_complete = torch.zeros(x.size(0),device = mask.device)
+        P_complete = torch.zeros(x.size(0),device = mask.device)
         D_complete[node_idx] = num_edges_per_node.float()
         P_complete[node_idx] = num_edges_per_node.float() - k_edges_per_node
-        D_src = D_complete[edge_index[0]]
-        D_tgt = D_complete[edge_index[1]]
+        # Partition batches contain destination-only/isolated nodes whose
+        # out-degree is 0; without the floor P/D is 0/0 -> nan.
+        D_src = D_complete[edge_index[0]].clamp_min(1)
+        D_tgt = D_complete[edge_index[1]].clamp_min(1)
         P_src = P_complete[edge_index[0]]
         P_tgt = P_complete[edge_index[1]]
         X_src = 0.5*torch.div(P_src,D_src) + 0.375*torch.pow(torch.div(P_src,D_src),2)+1
