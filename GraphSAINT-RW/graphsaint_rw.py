@@ -62,10 +62,11 @@ def fix_seed(seed: int):
 def graphsaint_sampler_cache_dir(cache_root: str, dataset_name: str, data, args) -> str:
     """Return a cache directory unique to this graph and sampler setup.
 
-    PyG names its normalization file only from ``sample_coverage``. Reusing one
-    save directory across datasets therefore loads tensors with the wrong node
-    and edge counts. Keep a small human-readable dataset level plus a stable
-    fingerprint of every setting that changes the normalization statistics.
+    PyG's normalization filename does not identify the dataset or every sampler
+    setting. Reusing one save directory across datasets can therefore load
+    tensors with the wrong node and edge counts. Keep a small human-readable
+    dataset level plus a stable fingerprint of every setting that changes the
+    normalization statistics.
     """
     if not cache_root:
         return ""
@@ -87,10 +88,26 @@ def graphsaint_sampler_cache_dir(cache_root: str, dataset_name: str, data, args)
     manifest_path = cache_dir / "manifest.json"
     manifest_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
 
-    norm_path = cache_dir / f"graphsaint_random_walk_sampler_{args.sample_coverage}.pt"
-    if norm_path.exists():
+    # PyG 2.x derives the file name from the lower-cased sampler class, walk
+    # length, and coverage. Keep the former local spelling in the validation
+    # list as well so caches produced by either supported environment are
+    # checked before the loader consumes them.
+    norm_paths = (
+        cache_dir
+        / (
+            f"graphsaintrandomwalksampler_{args.walk_length}_"
+            f"{args.sample_coverage}.pt"
+        ),
+        cache_dir
+        / f"graphsaint_random_walk_sampler_{args.sample_coverage}.pt",
+    )
+    for norm_path in norm_paths:
+        if not norm_path.exists():
+            continue
         try:
-            node_norm, edge_norm = torch.load(norm_path, map_location="cpu", weights_only=False)
+            node_norm, edge_norm = torch.load(
+                norm_path, map_location="cpu", weights_only=False
+            )
             valid = (
                 int(node_norm.numel()) == int(data.num_nodes)
                 and int(edge_norm.numel()) == int(data.edge_index.size(1))
@@ -98,7 +115,11 @@ def graphsaint_sampler_cache_dir(cache_root: str, dataset_name: str, data, args)
         except Exception:
             valid = False
         if not valid:
-            print(f"[Sampler cache] removing incompatible normalization cache: {norm_path}", flush=True)
+            print(
+                "[Sampler cache] removing incompatible normalization cache: "
+                f"{norm_path}",
+                flush=True,
+            )
             norm_path.unlink(missing_ok=True)
     return str(cache_dir)
 
@@ -285,6 +306,64 @@ class SaintNet(torch.nn.Module):
         return out
 
 
+def build_edge_inputs(model, batch, use_saint_norm: bool, device):
+    """Return the ``(edge_index, edge_weight)`` pair for one forward pass.
+
+    The GraphConv backbone keeps the PyG example's contract: normalized
+    sampled training folds ``edge_norm`` into ``edge_weight`` and switches the
+    aggregation to ``add``; every other pass aggregates unweighted with
+    ``mean``. A model that needs a different convention -- e.g. a GCN backbone
+    whose symmetric normalization must be computed on the *full* graph rather
+    than on whatever the sampler happened to return -- supplies its own
+    ``build_edge_inputs``.
+    """
+    builder = getattr(model, "build_edge_inputs", None)
+    if builder is not None:
+        return builder(batch, use_saint_norm, device)
+    edge_index = batch.edge_index.to(device)
+    if not use_saint_norm:
+        return edge_index, None
+    return edge_index, (batch.edge_norm * batch.edge_weight).to(device)
+
+
+def labeled_node_mask(y: torch.Tensor, multilabel: bool) -> torch.Tensor:
+    """Nodes carrying at least one supervised target."""
+    if multilabel:
+        return (torch.isfinite(y) & (y >= 0)).any(dim=-1)
+    return y >= 0
+
+
+def normalized_loss_scale(args, data, multilabel: bool) -> float:
+    """Rescale GraphSAINT's node-normalized loss to a per-train-node mean.
+
+    ``(loss * node_norm)[train].sum()`` is an unbiased estimate of
+    ``sum(loss over train nodes) / num_nodes``, not of the *mean* over train
+    nodes that full-graph training minimizes. The two differ by the factor
+    ``num_train / num_nodes`` -- 140/2,708 on Cora's tunedGNN split.
+
+    Adam rescales the data gradient away, but ``weight_decay`` is added to that
+    gradient *before* the moment estimates, so shrinking the data term by 19x
+    silently multiplies the effective regularization by the same amount. The
+    tunedGNN presets pin ``weight_decay`` against a per-train-node mean loss,
+    so keeping that scale is what makes the inherited preset mean here what it
+    means for full-graph tunedGNN. GraphSAINT's sampling-bias correction is
+    untouched: only a constant multiplies the estimator.
+
+    Measured on Cora over 3 runs this is a wash (79.7 +- 0.6 with
+    ``graphsaint_sum`` vs 79.0 +- 0.8 with ``train_mean`` for GraphSAINT-RW;
+    79.1 +- 1.4 vs 79.3 +- 1.4 for the tunedGNN backbone), so the PyG scale
+    stays the default and this is opt-in. It is inert on every large dataset
+    anyway, because ``use_normalization=auto`` disables the correction there.
+    """
+    if not args.use_normalization:
+        return 1.0
+    if args.normalized_loss_scale != "train_mean":
+        return 1.0
+    labeled = labeled_node_mask(data.y, multilabel)
+    num_train = int((data.train_mask.bool() & labeled).sum())
+    return float(data.num_nodes) / max(num_train, 1)
+
+
 def macro_f1(pred: torch.Tensor, labels: torch.Tensor, mask: torch.Tensor) -> float:
     mask = mask.bool()
     labels = labels[mask]
@@ -311,7 +390,10 @@ def evaluate(
     model.eval()
     model.set_aggr("mean")
     if full_graph_eval:
-        logits = model(data.x.to(device), data.edge_index.to(device))
+        edge_index, edge_weight = build_edge_inputs(
+            model, data, use_saint_norm=False, device=device
+        )
+        logits = model(data.x.to(device), edge_index, edge_weight)
     else:
         logits = model.inference(data.x, subgraph_loader, device)
     if multilabel:
@@ -382,11 +464,16 @@ def train_one_run(
     run_seed,
     run_id,
     multilabel,
+    model_factory=None,
+    result_method="graphsaint",
 ):
     select_pyg_split(data, run_id - 1)
     metric_name = "ROC-AUC" if multilabel else "Accuracy"
+    loss_scale = normalized_loss_scale(args, data, multilabel)
 
-    model = SaintNet(
+    if model_factory is None:
+        model_factory = SaintNet
+    model = model_factory(
         in_channels=num_features,
         hidden_channels=args.hidden_channels,
         out_channels=num_classes,
@@ -443,6 +530,11 @@ def train_one_run(
         f"nodes={int(data.num_nodes)} edges={int(data.edge_index.size(1))}",
         flush=True,
     )
+    print(
+        f"[Loss scale] use_normalization={bool(args.use_normalization)} "
+        f"mode={args.normalized_loss_scale} factor={loss_scale:.4f}",
+        flush=True,
+    )
 
     best_val = float("-inf")
     chosen_test = 0.0
@@ -462,14 +554,21 @@ def train_one_run(
             batch = batch.to(args.device)
             optimizer.zero_grad()
 
-            train_mask_batch = batch.train_mask.bool()
+            # Datasets such as Pokec carry -1 for unlabeled nodes. The
+            # normalized branch scores every node in the subgraph, so those
+            # targets have to be excluded before they reach ``nll_loss``.
+            train_mask_batch = batch.train_mask.bool() & labeled_node_mask(
+                batch.y, multilabel
+            )
             n_train = int(train_mask_batch.sum())
             if n_train == 0:
                 continue
 
+            edge_index, edge_weight = build_edge_inputs(
+                model, batch, bool(args.use_normalization), args.device
+            )
+            out = model(batch.x, edge_index, edge_weight)
             if args.use_normalization:
-                edge_weight = batch.edge_norm * batch.edge_weight
-                out = model(batch.x, batch.edge_index, edge_weight)
                 if multilabel:
                     loss = _multilabel_loss(
                         out,
@@ -478,10 +577,12 @@ def train_one_run(
                         node_norm=batch.node_norm,
                     )
                 else:
-                    loss = F.nll_loss(out, batch.y, reduction="none")
+                    loss = F.nll_loss(
+                        out, batch.y.clamp(min=0), reduction="none"
+                    )
                     loss = (loss * batch.node_norm)[train_mask_batch].sum()
+                loss = loss * loss_scale
             else:
-                out = model(batch.x, batch.edge_index)
                 if multilabel:
                     loss = _multilabel_loss(
                         out, batch.y, train_mask_batch
@@ -533,7 +634,7 @@ def train_one_run(
         f"chosen_epoch: {chosen_epoch}"
     )
     append_baseline_result(
-        method="graphsaint",
+        method=result_method,
         dataset=dataset_name,
         run=run_id,
         seed=run_seed,
@@ -598,8 +699,16 @@ def resolve_sampler_settings(args, num_nodes: int):
     return args
 
 
-def main():
-    parser = argparse.ArgumentParser(description="GraphSAINT-RW baseline (PyG official sampler)")
+def main(
+    model_factory=None,
+    result_method="graphsaint",
+    description=None,
+    data_prep=None,
+):
+    parser = argparse.ArgumentParser(
+        description=description
+        or "GraphSAINT-RW baseline (PyG official sampler)"
+    )
     parser.add_argument("--dataset", required=True)
     # Resolve to the SAME tree main.py / scaffold_fast use (DEFAULT_DATA_DIR in
     # utils/defaults.py). That way we always load the same cached Reddit /
@@ -642,6 +751,17 @@ def main():
                             str(Path(DEFAULT_CACHE_DIR) / "graphsaint" / "sampler"),
                         ))
     parser.add_argument(
+        "--normalized_loss_scale",
+        choices=("graphsaint_sum", "train_mean"),
+        default="graphsaint_sum",
+        help=(
+            "graphsaint_sum (default) keeps the PyG example's sum/num_nodes "
+            "scale. train_mean rescales the node-normalized loss to the "
+            "per-train-node mean the tunedGNN presets pin weight_decay "
+            "against; measured as a wash on Cora."
+        ),
+    )
+    parser.add_argument(
         "--use_normalization",
         type=str,
         default="auto",
@@ -677,6 +797,11 @@ def main():
         num_classes = int(labeled.max().item()) + 1 if labeled.numel() else 0
     num_features = int(data.x.size(1))
 
+    # Backbones that normalize on the full graph attach their own edge-level
+    # tensors here, before the sampler indexes them alongside edge_weight.
+    if data_prep is not None:
+        data_prep(data)
+
     resolve_sampler_settings(args, int(data.num_nodes))
 
     print(
@@ -706,6 +831,8 @@ def main():
             run_seed,
             run_idx,
             multilabel,
+            model_factory=model_factory,
+            result_method=result_method,
         )
         run_scores.append(score)
 
