@@ -354,6 +354,22 @@ def normalized_loss_scale(args, data, multilabel: bool) -> float:
     79.1 +- 1.4 vs 79.3 +- 1.4 for the tunedGNN backbone), so the PyG scale
     stays the default and this is opt-in. It is inert on every large dataset
     anyway, because ``use_normalization=auto`` disables the correction there.
+
+    **That Cora measurement does not generalize, and reading it as "this never
+    matters" was wrong.** What matters is the product ``weight_decay *
+    num_nodes / num_train``, and Cora sits at 0.0005 * 19.3 = 0.0097, near the
+    bottom of the range. The tunedGNN presets put citeseer at 0.01 * 27.7 =
+    0.277 and pubmed at 0.0005 * 328.6 = 0.164 -- 17x and 10x higher than any
+    other dataset in the study. Both collapse under ``graphsaint_sum``: train
+    accuracy pins at exactly 1/num_classes with a flat loss, i.e. weight decay
+    zeroes the weights before the data term can move them (citeseer 24.8 vs
+    67.8 for the untuned GraphSAINT-RW baseline, pubmed 38.4 vs 59.9). Every
+    other dataset in the study has ``weight_decay * N/num_train`` <= 0.01 and
+    is unaffected either way.
+
+    ``run_tunedgnn_graphsaint.sh`` therefore passes ``train_mean``. The default
+    here stays ``graphsaint_sum`` because plain GraphSAINT-RW is meant to
+    reproduce the PyG example and does not inherit the tunedGNN presets.
     """
     if not args.use_normalization:
         return 1.0
