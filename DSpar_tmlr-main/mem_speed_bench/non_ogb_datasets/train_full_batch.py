@@ -22,7 +22,9 @@ if str(EDSPARSE_ROOT) not in sys.path:
     sys.path.insert(0, str(EDSPARSE_ROOT))
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR
 from ICML_SPARSIFICATION.scripts.common.baseline_result_utils import (
+    RunTimeBudget,
     multilabel_roc_auc_f1_percent,
+    single_label_roc_auc_percent,
 )
 from edsparse.third_party.tunedgnn.medium_model import MPNNs as TunedGNNMPNN
 
@@ -251,8 +253,14 @@ def compute_multilabel_metrics(logits, y, mask=None):
     return roc_auc / 100.0, macro_f1 / 100.0
 
 
+def compute_single_label_roc_auc(logits, y, mask=None) -> float:
+    if mask is not None:
+        logits, y = logits[mask], y[mask]
+    return single_label_roc_auc_percent(y, logits.float()) / 100.0
+
+
 @torch.no_grad()
-def test(model, data, amp_mode):
+def test(model, data, amp_mode, metric='acc'):
     model.eval()
     with autocast(enabled=amp_mode):
         out = model(data.x, data.adj_t)
@@ -271,9 +279,18 @@ def test(model, data, amp_mode):
             out, y_true, data.test_mask
         )
     else:
-        train_acc = compute_micro_f1(out, y_true, data.train_mask)
-        valid_acc = compute_micro_f1(out, y_true, data.val_mask)
-        test_acc = compute_micro_f1(out, y_true, data.test_mask)
+        # Minesweeper and Questions are scored by ROC-AUC.  Their accuracy is
+        # pinned at the 80%/97% majority-class rate whatever the model learns,
+        # which would also make the validation-based selection in Logger
+        # degenerate, so --metric has to reach this branch.
+        primary = (
+            compute_single_label_roc_auc
+            if str(metric).lower() == 'rocauc'
+            else compute_micro_f1
+        )
+        train_acc = primary(out, y_true, data.train_mask)
+        valid_acc = primary(out, y_true, data.val_mask)
+        test_acc = primary(out, y_true, data.test_mask)
         train_f1 = compute_macro_f1(out, y_true, data.train_mask)
         test_f1 = compute_macro_f1(out, y_true, data.test_mask)
     return train_acc, valid_acc, test_acc, train_f1, test_f1
@@ -530,18 +547,22 @@ def main():
         print('inductive learning mode')
         data = to_inductive(data)
     logger = Logger(args.runs, args)
-    metric_name = 'ROC-AUC' if multi_label else 'Accuracy'
+    single_label_metric = str(args.metric or model_config.get('metric') or 'acc').lower()
+    metric_name = (
+        'ROC-AUC' if multi_label or single_label_metric == 'rocauc' else 'Accuracy'
+    )
     for run in range(args.runs):
         select_pyg_split(data, run)
         model.reset_parameters()
         optimizer = get_optimizer(model_config, model)
+        budget = RunTimeBudget().start()
         for epoch in range(1, 1 + model_config['epochs']):
             loss = train(model, optimizer, data, args.grad_norm, scaler, args.amp)
             print(f'Run: {run + 1:02d}, '
                     f'Epoch: {epoch:02d}, '
                     f'Train Loss: {loss:.4f}')
     
-            result = test(model, data, args.amp)
+            result = test(model, data, args.amp, metric=single_label_metric)
             logger.add_result(run, result)
             train_acc, valid_acc, test_acc, train_f1, test_f1 = result
             print(f'Run: {run + 1:02d}, '
@@ -550,6 +571,10 @@ def main():
                     f'Valid {metric_name}: {100 * valid_acc:.2f}% '
                     f'Test {metric_name}: {100 * test_acc:.2f}% '
                     f'Test F1 Macro: {100 * test_f1:.2f}%')
+            # This epoch is already in the logger, so print_statistics() below
+            # still selects the best epoch this run actually reached.
+            if budget.exhausted(run + 1, epoch, model_config['epochs']):
+                break
 
         logger.add_result(run, result)
         logger.print_statistics(run)

@@ -32,9 +32,11 @@ if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 from EDSparseDataset import load_pyg_data, select_pyg_split
 from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    RunTimeBudget,
     append_baseline_result,
     macro_f1_percent,
     multilabel_roc_auc_f1_percent,
+    single_label_roc_auc_percent,
 )
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_CACHE_DIR, DEFAULT_DATA_DIR
 
@@ -398,11 +400,14 @@ def evaluate(
     full_graph_eval,
     subgraph_loader,
     multilabel,
+    metric="acc",
 ):
     # Follows PyG's examples/graph_saint.py test(): plain
     #   correct[mask].sum() / mask.sum()
     # accuracy on the full graph. Both eval paths (full-graph vs layer-wise
     # NeighborLoader) return log-softmax logits; argmax is the prediction.
+    # Minesweeper and Questions instead pass --metric rocauc, because their
+    # accuracy is the 80%/97% majority-class rate however the model ranks nodes.
     model.eval()
     model.set_aggr("mean")
     if full_graph_eval:
@@ -446,9 +451,19 @@ def evaluate(
             return 0.0
         return float(correct[valid].sum().item()) / denom
 
-    train_acc = _acc(data.train_mask)
-    val_acc = _acc(data.val_mask)
-    test_acc = _acc(data.test_mask)
+    def _rocauc(mask):
+        mask = mask.to(pred.device).bool()
+        valid = mask & (labels >= 0)
+        if not bool(valid.any()):
+            return 0.0
+        return single_label_roc_auc_percent(
+            labels[valid].cpu(), logits[valid].cpu()
+        ) / 100.0
+
+    _metric = _rocauc if str(metric).lower() == "rocauc" else _acc
+    train_acc = _metric(data.train_mask)
+    val_acc = _metric(data.val_mask)
+    test_acc = _metric(data.test_mask)
     train_f1_macro = macro_f1(pred, labels, data.train_mask)
     test_f1_macro = macro_f1(pred, labels, data.test_mask)
     return train_acc, val_acc, test_acc, train_f1_macro, test_f1_macro
@@ -484,7 +499,10 @@ def train_one_run(
     result_method="graphsaint",
 ):
     select_pyg_split(data, run_id - 1)
-    metric_name = "ROC-AUC" if multilabel else "Accuracy"
+    single_label_metric = str(getattr(args, "metric", "acc")).lower()
+    metric_name = (
+        "ROC-AUC" if multilabel or single_label_metric == "rocauc" else "Accuracy"
+    )
     loss_scale = normalized_loss_scale(args, data, multilabel)
 
     if model_factory is None:
@@ -559,6 +577,7 @@ def train_one_run(
     chosen_train_macro = 0.0
     chosen_epoch = 0
     train_f1 = val_f1 = test_f1 = 0.0
+    budget = RunTimeBudget().start()
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -616,7 +635,12 @@ def train_one_run(
             total_loss += float(loss.item()) * int(batch.num_nodes)
             total_examples += int(batch.num_nodes)
 
-        if epoch == 1 or epoch % args.eval_step == 0 or epoch == args.epochs:
+        if (
+            epoch == 1
+            or epoch % args.eval_step == 0
+            or epoch == args.epochs
+            or budget.expired
+        ):
             train_f1, val_f1, test_f1, train_f1_macro, test_f1_macro = evaluate(
                 model,
                 data,
@@ -625,6 +649,7 @@ def train_one_run(
                 full_graph_eval,
                 subgraph_loader,
                 multilabel,
+                metric=single_label_metric,
             )
             avg_loss = total_loss / max(total_examples, 1)
             if val_f1 > best_val:
@@ -640,6 +665,8 @@ def train_one_run(
                 f"Test: {test_f1 * 100:.2f}%, Test F1 Macro: {test_f1_macro * 100:.2f}%",
                 flush=True,
             )
+        if budget.exhausted(run_id, epoch, args.epochs):
+            break
 
     print(
         f"run_{run_id} metric={metric_name} train_metric: {train_f1:.6f} "
@@ -661,6 +688,7 @@ def train_one_run(
         train_f1_macro=100 * chosen_train_macro,
         test_f1_macro=100 * chosen_test_macro,
         chosen_epoch=chosen_epoch,
+        metric="rocauc" if metric_name == "ROC-AUC" else "acc",
     )
     return chosen_test
 
@@ -806,6 +834,9 @@ def main(
     data.edge_weight = 1.0 / deg[col]
 
     multilabel = data.y.dim() > 1 and data.y.size(-1) > 1
+    # Heterophilous ROC-AUC datasets (minesweeper, questions) are single label,
+    # so the reported metric follows --metric there rather than multilabel.
+    rocauc_metric = multilabel or str(getattr(args, "metric", "acc")).lower() == "rocauc"
     if multilabel:
         num_classes = int(data.y.size(-1))
     else:
@@ -824,7 +855,7 @@ def main(
         f"dataset {args.dataset} | num nodes {data.num_nodes} | "
         f"num edge {num_edges} | num node feats {num_features} | "
         f"num outputs {num_classes} | "
-        f"metric {'ROC-AUC' if multilabel else 'Accuracy'}"
+        f"metric {'ROC-AUC' if rocauc_metric else 'Accuracy'}"
     )
     print(
         f"[Resolved sampler] batch_size={args.batch_size} "
@@ -855,7 +886,7 @@ def main(
     run_scores = np.asarray(run_scores, dtype=np.float64)
     mean = float(run_scores.mean()) if len(run_scores) else 0.0
     std = float(run_scores.std(ddof=1)) if len(run_scores) > 1 else 0.0
-    metric_key = "roc_auc" if multilabel else "accuracy"
+    metric_key = "roc_auc" if rocauc_metric else "accuracy"
     print(
         f"all_runs chosen_test_{metric_key}_mean: {mean:.6f} "
         f"chosen_test_{metric_key}_std: {std:.6f}"

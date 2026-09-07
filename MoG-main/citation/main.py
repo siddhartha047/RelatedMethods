@@ -14,7 +14,11 @@ SUPPORT_GRAPH_ROOT = Path(os.environ.get("SUPPORT_GRAPH_ROOT", Path(__file__).re
 if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 from EDSparseDataset import load_pyg_data, select_pyg_split
-from ICML_SPARSIFICATION.scripts.baseline_result_utils import macro_f1_percent
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    RunTimeBudget,
+    macro_f1_percent,
+    single_label_metric_percent,
+)
 
 import numpy as np
 import random
@@ -64,20 +68,32 @@ def train(model:MoG,features,indices,labels,values,shape,train_idx,temp,optimize
     
 
 @torch.no_grad()
-def test(model:MoG,features,indices,labels,values,shape,split_idx,temp,mask=None):
+def test(model:MoG,features,indices,labels,values,shape,split_idx,temp,mask=None,metric='acc'):
     model.eval()
-    mask,add_loss = model.learner(x = features, edge_index = indices, 
+    mask,add_loss = model.learner(x = features, edge_index = indices,
                                   temp = temp,shape = shape,
                                   edge_attr = values, training = False)  # mask:size(num_edges)
     output = model.gnn(features, indices, mask)
     sparsity = torch.nonzero(mask).size(0)/mask.numel()
     y_pred = output.argmax(dim=-1, keepdim=False)
-    train_acc = y_pred[split_idx['train']].eq(labels[split_idx['train']]).sum().item()/split_idx['train'].sum().item()
-    valid_acc = y_pred[split_idx['valid']].eq(labels[split_idx['valid']]).sum().item()/split_idx['valid'].sum().item()
-    test_acc = y_pred[split_idx['test']].eq(labels[split_idx['test']]).sum().item()/split_idx['test'].sum().item()
+    # Minesweeper and Questions are scored by ROC-AUC, so the reported value and
+    # the best-epoch selection in main() both have to follow --metric.  Their
+    # accuracy is the 80%/97% majority-class rate whatever the model learns.
+    if str(metric).lower() == 'rocauc':
+        def primary(split):
+            idx = split_idx[split]
+            return single_label_metric_percent(labels[idx], output[idx], metric) / 100.0
+    else:
+        def primary(split):
+            idx = split_idx[split]
+            return y_pred[idx].eq(labels[idx]).sum().item()/idx.sum().item()
+
+    train_acc = primary('train')
+    valid_acc = primary('valid')
+    test_acc = primary('test')
     train_f1 = macro_f1_percent(labels[split_idx['train']], y_pred[split_idx['train']]) / 100.0
     test_f1 = macro_f1_percent(labels[split_idx['test']], y_pred[split_idx['test']]) / 100.0
-    
+
     return train_acc, valid_acc, test_acc, sparsity, train_f1, test_f1
     
 
@@ -192,6 +208,7 @@ def main():
             f'learner_lr={args["lr"]} learner_weight_decay=0.0'
         )
         best_val_acc, best_test_acc, best_sparsity = 0, 0, 1
+        budget = RunTimeBudget().start()
         if args['use_topo']:
             model.learner.topo_val = topo_val
         else:
@@ -209,7 +226,8 @@ def main():
 
             EpochTimes.append(time.time()-start)
 
-            result = test(model,features,indices,labels,values,shape,split_idx,temp)
+            result = test(model,features,indices,labels,values,shape,split_idx,temp,
+                          metric=args['metric'])
             train_acc, valid_acc, test_acc, sparsity, train_f1, test_f1 = result
             
             # log and print
@@ -237,6 +255,10 @@ def main():
                       f'Best Valid: {100 * best_val_acc:.2f}%, '
                       f'Best Test: {100 * best_test_acc:.2f}%, '
                       f'Best Kept Ratio: {100 * best_sparsity:.2f}%,')
+            # logger.add_result() has already recorded this epoch, so the
+            # statistics below still select the best epoch actually reached.
+            if budget.exhausted(run + 1, epoch, args['epochs']):
+                break
         #save_edge_index(indices,best_mask,best_sparsity)
         logger.print_statistics(run)
     logger.print_statistics()

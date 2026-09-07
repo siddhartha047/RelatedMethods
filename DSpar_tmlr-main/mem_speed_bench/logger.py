@@ -36,6 +36,9 @@ class Logger(object):
                 train_f1_macro=result[argmax, 3].item() if result.shape[1] >= 5 else None,
                 test_f1_macro=result[argmax, 4].item() if result.shape[1] >= 5 else None,
                 chosen_epoch=argmax,
+                # Records whether the *_acc columns hold accuracy or ROC-AUC, so
+                # the harvested table cannot silently mix the two.
+                metric=getattr(self.info, 'metric', None),
             )
         else:
             result = 100 * torch.tensor(self.results)

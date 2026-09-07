@@ -50,6 +50,9 @@ class Logger(object):
                 train_f1_macro=result[argmax, 4].item() if result.shape[1] >= 6 else None,
                 test_f1_macro=result[argmax, 5].item() if result.shape[1] >= 6 else None,
                 chosen_epoch=argmax,
+                # Records whether the *_acc columns hold accuracy or ROC-AUC, so
+                # the harvested table cannot silently mix the two.
+                metric=self.info.get('metric') if isinstance(self.info, dict) else None,
             )
         else:
             print(self.results)
