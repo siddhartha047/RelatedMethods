@@ -166,6 +166,14 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
 
     acc_test = 0.0
     best_val_acc = {'val_acc': 0, 'epoch': 0, 'test_acc': 0, 'train_acc': 0, 'train_f1': 0, 'test_f1': 0}
+    eval_edge_masks = edge_masks
+    if os.environ.get('BASELINE_EVAL_GRAPH', 'sparse').lower() == 'original':
+        eval_edge_masks = []
+        print(
+            '[EvaluationGraph] topology=original-full '
+            'training_topology=fixed-sparse-ticket',
+            flush=True,
+        )
     
     for epoch in range(args['retain_epoch']):
         net_gcn.train()
@@ -179,7 +187,7 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
         with torch.no_grad():
             net_gcn.eval()
             output = net_gcn(features, adj, val_test=True,
-                             edge_masks=edge_masks,wei_masks=wei_masks)
+                             edge_masks=eval_edge_masks,wei_masks=wei_masks)
             acc_val = f1_score(labels[idx_val].cpu().numpy(
             ), output[idx_val].cpu().numpy().argmax(axis=1), average='micro')
             acc_test = f1_score(labels[idx_test].cpu().numpy(

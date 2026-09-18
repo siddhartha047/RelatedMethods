@@ -92,10 +92,13 @@ class net_gcn(nn.Module):
         self.adj_mask1_train = nn.Parameter(self.generate_adj_mask(adj))
         self.adj_mask2_fixed = nn.Parameter(self.generate_adj_mask(adj), requires_grad=False)
     
-    def forward(self, x, adj, val_test=False):
+    def forward(self, x, adj, val_test=False, full_graph=False):
         
-        masked_adj = torch.mul(adj, self.adj_mask1_train)
-        masked_adj = torch.mul(masked_adj, self.adj_mask2_fixed)
+        if full_graph:
+            masked_adj = adj
+        else:
+            masked_adj = torch.mul(adj, self.adj_mask1_train)
+            masked_adj = torch.mul(masked_adj, self.adj_mask2_fixed)
         edge_index = torch.nonzero(adj, as_tuple=False).t().contiguous()
         edge_weight = masked_adj[edge_index[0], edge_index[1]]
         if self.input_dropout > 0 and not val_test:

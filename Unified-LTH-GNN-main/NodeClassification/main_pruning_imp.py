@@ -29,6 +29,7 @@ if str(SUPPORT_GRAPH_ROOT) not in sys.path:
     sys.path.insert(0, str(SUPPORT_GRAPH_ROOT))
 
 from ICML_SPARSIFICATION.scripts.baseline_result_utils import (  # noqa: E402
+    RunTimeBudget,
     append_baseline_result,
 )
 from ICML_SPARSIFICATION.utils.defaults import DEFAULT_DATA_DIR  # noqa: E402
@@ -79,10 +80,17 @@ def _evaluate(
     labels: torch.Tensor,
     indices: torch.Tensor,
     metric: str,
+    *,
+    full_graph: bool = False,
 ) -> tuple[float, float]:
     model.eval()
     with torch.no_grad():
-        logits = model(features, adjacency, val_test=True)
+        logits = model(
+            features,
+            adjacency,
+            val_test=True,
+            full_graph=full_graph,
+        )
     prediction = logits[indices].argmax(dim=-1)
     truth = labels[indices]
     if metric == "rocauc":
@@ -133,6 +141,8 @@ def _discover_ticket(
     device: torch.device,
     starting_state: dict[str, torch.Tensor] | None,
     adjacency_keep_count: int,
+    budget: RunTimeBudget | None = None,
+    run_number: int = 1,
 ):
     adjacency, features, labels, idx_train, idx_val, _idx_test = tensors
     model = _build_model(args, adjacency, device)
@@ -199,6 +209,12 @@ def _discover_ticket(
             f"best_val={100.0 * best_validation:.2f}",
             flush=True,
         )
+        if budget is not None and budget.exhausted(
+            run_number,
+            f"mask:{epoch + 1}",
+            f"mask:{args['mask_epoch']}+fixed:{args['total_epoch']}",
+        ):
+            break
 
     if best_mask is None:
         raise RuntimeError("Unified-LTH mask discovery produced no ticket")
@@ -210,6 +226,8 @@ def _train_fixed_ticket(
     tensors,
     device: torch.device,
     ticket_state: dict[str, torch.Tensor],
+    budget: RunTimeBudget | None = None,
+    run_number: int = 1,
 ) -> dict[str, float | int]:
     adjacency, features, labels, idx_train, idx_val, idx_test = tensors
     model = _build_model(args, adjacency, device)
@@ -236,6 +254,13 @@ def _train_fixed_ticket(
         "test_f1": 0.0,
         "epoch": 0,
     }
+    full_graph_eval = args["eval_graph"] == "original"
+    if full_graph_eval:
+        print(
+            "[EvaluationGraph] topology=original-full "
+            "training_topology=fixed-sparse-ticket",
+            flush=True,
+        )
 
     for epoch in range(args["total_epoch"]):
         model.train()
@@ -246,13 +271,16 @@ def _train_fixed_ticket(
         optimizer.step()
 
         valid_acc, _valid_f1 = _evaluate(
-            model, features, adjacency, labels, idx_val, args["metric"]
+            model, features, adjacency, labels, idx_val, args["metric"],
+            full_graph=full_graph_eval,
         )
         test_acc, test_f1 = _evaluate(
-            model, features, adjacency, labels, idx_test, args["metric"]
+            model, features, adjacency, labels, idx_test, args["metric"],
+            full_graph=full_graph_eval,
         )
         train_acc, train_f1 = _evaluate(
-            model, features, adjacency, labels, idx_train, args["metric"]
+            model, features, adjacency, labels, idx_train, args["metric"],
+            full_graph=full_graph_eval,
         )
         if valid_acc > best["valid_acc"]:
             best.update(
@@ -275,6 +303,12 @@ def _train_fixed_ticket(
             f"best_epoch={best['epoch']}",
             flush=True,
         )
+        if budget is not None and budget.exhausted(
+            run_number,
+            f"fixed:{epoch + 1}",
+            f"mask:{args['mask_epoch']}+fixed:{args['total_epoch']}",
+        ):
+            break
 
     best["adjacency_kept_percent"] = adjacency_kept_percent
     best["weight_kept_percent"] = weight_kept_percent
@@ -355,6 +389,7 @@ def run_protocol(args: dict[str, Any]) -> None:
             flush=True,
         )
         tensors = _load_tensors(args, device)
+        budget = RunTimeBudget().start()
         original_adjacency_count = int(
             torch.count_nonzero(tensors[0]).item()
         )
@@ -385,12 +420,16 @@ def run_protocol(args: dict[str, Any]) -> None:
                 device,
                 ticket_state,
                 adjacency_keep_count,
+                budget=budget,
+                run_number=run + 1,
             )
             final_result = _train_fixed_ticket(
                 args,
                 tensors,
                 device,
                 ticket_state,
+                budget=budget,
+                run_number=run + 1,
             )
             print(
                 "[TargetRatio] "
@@ -464,6 +503,13 @@ def parser_loader() -> argparse.ArgumentParser:
         "--metric",
         choices=("acc", "rocauc"),
         default="acc",
+    )
+    parser.add_argument(
+        "--eval_graph",
+        "--eval-graph",
+        choices=("sparse", "original"),
+        default=os.environ.get("BASELINE_EVAL_GRAPH", "sparse"),
+        help="Topology used for fixed-ticket validation/test inference.",
     )
     parser.add_argument("--pre_linear", type=int, choices=(0, 1), default=0)
     parser.add_argument("--residual", type=int, choices=(0, 1), default=0)

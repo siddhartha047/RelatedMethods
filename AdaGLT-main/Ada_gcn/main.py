@@ -20,7 +20,10 @@ import pruning
 import copy
 from scipy.sparse import coo_matrix
 import warnings
-from ICML_SPARSIFICATION.scripts.baseline_result_utils import append_baseline_result
+from ICML_SPARSIFICATION.scripts.baseline_result_utils import (
+    RunTimeBudget,
+    append_baseline_result,
+)
 warnings.filterwarnings('ignore')
 
 
@@ -42,7 +45,7 @@ def _selection_metric(labels, logits, indices, metric):
     return float(f1_score(truth, prediction, average="micro"))
 
 
-def run_get_mask(args):
+def run_get_mask(args, budget=None, run_number=1):
     device = args['device']
     
     adj, features, labels, idx_train, idx_val, idx_test, degree, learning_type = \
@@ -178,6 +181,17 @@ def run_get_mask(args):
             else:
                 print("")
 
+        # Stop only after a complete mask-learning epoch.  The selected mask
+        # below is still projected to the requested edge budget, and the fixed
+        # ticket phase gets one completed train/evaluation epoch so a valid
+        # result is always emitted at the wall-clock deadline.
+        if budget is not None and budget.exhausted(
+            run_number,
+            f"mask:{epoch + 1}",
+            f"mask:{args['total_epoch']}+fixed:{args['retain_epoch']}",
+        ):
+            break
+
     if best_target['mask'] is None:
         print("Target sparsity was not reached; using the latest masks for smoke/short-run compatibility.")
         best_target['mask'] = [copy.deepcopy(net_gcn.edge_mask_archive), copy.deepcopy(net_gcn.generate_wei_mask())]
@@ -203,7 +217,14 @@ def run_get_mask(args):
     return selected_edge_masks, selected_weight_masks, actual_adj_sparsity, rewind_weight
 
 
-def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
+def run_fix_mask(
+    args,
+    edge_masks,
+    wei_masks,
+    rewind_weight=None,
+    budget=None,
+    run_number=1,
+):
     device = args['device']
 
     edge_masks = [mask.to(device) for mask in edge_masks]
@@ -244,6 +265,16 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
 
     acc_test = 0.0
     best_val_acc = {'val_acc': 0, 'epoch': 0, 'test_acc': 0, 'train_acc': 0, 'train_f1': 0, 'test_f1': 0}
+    full_graph_eval = os.environ.get(
+        "BASELINE_EVAL_GRAPH", "sparse"
+    ).strip().lower() == "original"
+    evaluation_edge_masks = None if full_graph_eval else edge_masks
+    if full_graph_eval:
+        print(
+            "[EvaluationGraph] topology=original-full "
+            "training_topology=fixed-sparse-ticket",
+            flush=True,
+        )
     
     for epoch in range(args['retain_epoch']):
         net_gcn.train()
@@ -257,7 +288,8 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
         with torch.no_grad():
             net_gcn.eval()
             output = net_gcn(features, adj, val_test=True,
-                             edge_masks=edge_masks,wei_masks=wei_masks)
+                             edge_masks=evaluation_edge_masks,
+                             wei_masks=wei_masks)
             acc_val = _selection_metric(
                 labels, output, idx_val, args['metric']
             )
@@ -287,6 +319,12 @@ def run_fix_mask(args, edge_masks, wei_masks, rewind_weight=None):
                           best_val_acc['val_acc'] * 100,
                           best_val_acc['test_acc'] * 100,
                           best_val_acc['epoch']))
+        if budget is not None and budget.exhausted(
+            run_number,
+            f"fixed:{epoch + 1}",
+            f"mask:{args['total_epoch']}+fixed:{args['retain_epoch']}",
+        ):
+            break
     return best_val_acc
 
 if __name__ == "__main__":
@@ -300,11 +338,21 @@ if __name__ == "__main__":
     for run in range(args['runs']):
         os.environ['EDSPARSE_SPLIT_RUN'] = str(run)
         print(f"[TunedGNNProtocol] run={run + 1}/{args['runs']} seed={args['seed']}")
-        edge_masks, wei_masks, actual_adj_sparsity, rewind_weight = run_get_mask(args)
+        budget = RunTimeBudget().start()
+        edge_masks, wei_masks, actual_adj_sparsity, rewind_weight = run_get_mask(
+            args,
+            budget=budget,
+            run_number=run + 1,
+        )
 
         if not args['continuous']:
             best = run_fix_mask(
-                args, edge_masks, wei_masks, rewind_weight=rewind_weight
+                args,
+                edge_masks,
+                wei_masks,
+                rewind_weight=rewind_weight,
+                budget=budget,
+                run_number=run + 1,
             )
             append_baseline_result(
                 method='adaglt',

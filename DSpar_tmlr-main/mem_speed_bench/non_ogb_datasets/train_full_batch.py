@@ -80,6 +80,12 @@ parser.add_argument('--weight_decay', type=float, default=None)
 parser.add_argument('--dropout', type=float, default=None)
 parser.add_argument('--input_dropout', type=float, default=None)
 parser.add_argument('--metric', choices=('acc', 'rocauc'), default=None)
+parser.add_argument(
+    '--eval_graph', '--eval-graph',
+    choices=('sparse', 'original'),
+    default=os.environ.get('BASELINE_EVAL_GRAPH', 'sparse'),
+    help='Topology used for validation/test inference.',
+)
 parser.add_argument('--pre_linear', type=int, choices=(0, 1), default=None)
 parser.add_argument('--residual', type=int, choices=(0, 1), default=None)
 parser.add_argument('--layer_norm', type=int, choices=(0, 1), default=None)
@@ -406,6 +412,24 @@ def main():
         args.kept_ratio,
         preserve_undirected=args.tunedgnn_medium_backbone,
     )
+    eval_data = None
+    if args.eval_graph == 'original':
+        eval_data, eval_num_features, eval_num_classes = get_benchmark_data(
+            args.root,
+            args.dataset,
+            False,
+            False,
+            False,
+            None,
+            preserve_undirected=args.tunedgnn_medium_backbone,
+        )
+        if eval_num_features != num_features or eval_num_classes != num_classes:
+            raise RuntimeError('DSpar full-evaluation dataset metadata mismatch')
+        print(
+            '[EvaluationGraph] topology=original-full '
+            f'directed_edges={eval_data.num_edges} training_topology=sparse',
+            flush=True,
+        )
     args.actual_kept_ratio = getattr(
         data,
         'dspar_actual_kept_ratio',
@@ -529,23 +553,34 @@ def main():
     print('converting data form...')
     s_time = time.time()
     data = T.ToSparseTensor()(data.to(device))
+    if eval_data is not None:
+        eval_data = T.ToSparseTensor()(eval_data.to(device))
     print(f'done. used {time.time() - s_time} sec')
 
     if model_config['loop']:
         t = time.perf_counter()
         print('Adding self-loops...', end=' ', flush=True)
         data.adj_t = data.adj_t.set_diag()
+        if eval_data is not None:
+            eval_data.adj_t = eval_data.adj_t.set_diag()
         print(f'Done! [{time.perf_counter() - t:.2f}s]')
     
     if model_config['normalize']:
         t = time.perf_counter()
         print('Normalizing data...', end=' ', flush=True)
         data.adj_t = gcn_norm(data.adj_t, add_self_loops=False)
+        if eval_data is not None:
+            eval_data.adj_t = gcn_norm(
+                eval_data.adj_t,
+                add_self_loops=False,
+            )
         print(f'Done! [{time.perf_counter() - t:.2f}s]')
 
     if args.inductive:
         print('inductive learning mode')
         data = to_inductive(data)
+        if eval_data is not None:
+            eval_data = to_inductive(eval_data)
     logger = Logger(args.runs, args)
     single_label_metric = str(args.metric or model_config.get('metric') or 'acc').lower()
     metric_name = (
@@ -553,6 +588,8 @@ def main():
     )
     for run in range(args.runs):
         select_pyg_split(data, run)
+        if eval_data is not None:
+            select_pyg_split(eval_data, run)
         model.reset_parameters()
         optimizer = get_optimizer(model_config, model)
         budget = RunTimeBudget().start()
@@ -562,7 +599,12 @@ def main():
                     f'Epoch: {epoch:02d}, '
                     f'Train Loss: {loss:.4f}')
     
-            result = test(model, data, args.amp, metric=single_label_metric)
+            result = test(
+                model,
+                eval_data if eval_data is not None else data,
+                args.amp,
+                metric=single_label_metric,
+            )
             logger.add_result(run, result)
             train_acc, valid_acc, test_acc, train_f1, test_f1 = result
             print(f'Run: {run + 1:02d}, '

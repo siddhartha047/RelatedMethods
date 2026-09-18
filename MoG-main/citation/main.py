@@ -73,7 +73,10 @@ def test(model:MoG,features,indices,labels,values,shape,split_idx,temp,mask=None
     mask,add_loss = model.learner(x = features, edge_index = indices,
                                   temp = temp,shape = shape,
                                   edge_attr = values, training = False)  # mask:size(num_edges)
-    output = model.gnn(features, indices, mask)
+    evaluation_mask = mask
+    if os.environ.get('BASELINE_EVAL_GRAPH', 'sparse').lower() == 'original':
+        evaluation_mask = torch.ones_like(mask)
+    output = model.gnn(features, indices, evaluation_mask)
     sparsity = torch.nonzero(mask).size(0)/mask.numel()
     y_pred = output.argmax(dim=-1, keepdim=False)
     # Minesweeper and Questions are scored by ROC-AUC, so the reported value and
@@ -157,6 +160,13 @@ def main():
     # unpruned self-loop for every node during normalization; self-loops are
     # therefore outside MoG's requested edge budget.
     indices = to_undirected(remove_self_loops(data.edge_index)[0])
+
+    if os.environ.get('BASELINE_EVAL_GRAPH', 'sparse').lower() == 'original':
+        print(
+            '[EvaluationGraph] topology=original-full '
+            'training_topology=learned-sparse-mask',
+            flush=True,
+        )
 
     print(indices.shape)
 
